@@ -1,0 +1,2 @@
+C:\QuestGear3D\QuestGear3DScan\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\src\main\cpp\CMakeLists.txt
+C:\QuestGear3D\QuestGear3DScan\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\src\main\cpp\GameActivity\CMakeLists.txt

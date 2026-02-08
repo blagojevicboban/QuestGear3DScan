@@ -39,7 +39,7 @@ public class CameraAccessTest : MonoBehaviour
         Log("Checking for devices...");
         WebCamDevice[] devices = WebCamTexture.devices;
 
-        if (devices.length == 0)
+        if (devices.Length == 0)
         {
             Log("No Camera devices found!");
             return;
