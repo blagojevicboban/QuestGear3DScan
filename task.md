@@ -1,0 +1,26 @@
+# QuestGear 3D Scan - Development Tasks
+
+- [ ] **Project Setup**
+    - [ ] Create Unity Project (User Action required) <!-- id: 0 -->
+    - [ ] Configure Project for Quest 3 (Android Platform, OpenXR) <!-- id: 1 -->
+    - [ ] Import Meta XR Core SDK & All-in-One SDK <!-- id: 2 -->
+- [ ] **Feasibility Research (Critical)**
+    - [ ] [RESEARCH] Verify Raw RGB Camera Access on Quest 3 Standalone <!-- id: 3 -->
+    - [ ] [RESEARCH] Verify Depth API Access quality and format <!-- id: 4 -->
+- [/] **Core Implementation**
+    - [ ] **Camera Module**
+        - [ ] Implement Camera Access (WebCamTexture / Android Camera2 / Passthrough workaround) <!-- id: 5 -->
+        - [ ] Implement Pose Tracking (OVRCameraRig / XR Origin) <!-- id: 6 -->
+        - [ ] Synchronize RGB + Pose Capture <!-- id: 7 -->
+    - [ ] **Depth Module**
+        - [ ] Integrate Meta & Depth API <!-- id: 8 -->
+        - [ ] Capture Depth Maps aligned with RGB <!-- id: 9 -->
+    - [ ] **Data Management**
+        - [ ] Serialize intrinsics/extrinsics to JSON (Open3D format) <!-- id: 10 -->
+        - [ ] Save images (JPG/PNG) and depth (Raw/PNG) to storage <!-- id: 11 -->
+- [ ] **UI/UX**
+    - [ ] Create simple "Start/Stop Scan" Dashboard <!-- id: 12 -->
+    - [ ] Add status indicators (FPS, Buffer usage) <!-- id: 13 -->
+- [ ] **Integration**
+    - [ ] Test Data Export to PC <!-- id: 15 -->
+    - [ ] Verify imported data in QuestGear 3D Studio <!-- id: 16 -->
