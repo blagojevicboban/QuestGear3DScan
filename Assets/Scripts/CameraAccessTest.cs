@@ -1,6 +1,8 @@
-using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.Android;
+// [DEPRECATED]
+// This script was used for initial feasibility testing.
+// The production logic has been moved to Assets/Scripts/Core/QuestCameraProvider.cs
+// and is managed by ScanController.
+// Keep this script only for quick standalone tests.
 
 public class CameraAccessTest : MonoBehaviour
 {

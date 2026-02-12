@@ -14,7 +14,7 @@
         - [x] Define `IFrameProvider` interface (Color, Depth, Pose) <!-- id: 21 -->
         - [x] Implement `ScanController` (Orchestrator) <!-- id: 22 -->
     - [ ] **Camera Module**
-        - [ ] Implement `QuestCameraProvider` (Wrapper around WebCamTexture/Passthrough) <!-- id: 5 -->
+        - [x] Implement `QuestCameraProvider` (Wrapper around WebCamTexture/Passthrough) <!-- id: 5 -->
         - [ ] Implement Pose Tracking (Wrapper around OVRCameraRig) <!-- id: 6 -->
         - [ ] Synchronize RGB + Pose Capture <!-- id: 7 -->
     - [ ] **Depth Module**
