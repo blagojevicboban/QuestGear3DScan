@@ -17,6 +17,7 @@ QuestGear 3D Scan facilitates the capture of high-quality data for 3D reconstruc
 
 ## Documentation
 - [Feasibility Testing Guide](docs/FEASIBILITY_TESTS.md): Instructions for verifying Camera, Depth, and Scene API access.
+- [Offline Development Guide](docs/OFFLINE_DEV_GUIDE.md): Instructions for setting up the Unity Editor environment for testing without a headset.
 
 ## Getting Started
 

@@ -9,7 +9,7 @@
     - [/] [RESEARCH] Verify Depth API Access quality and format <!-- id: 4 -->
     - [ ] [RESEARCH] Evaluate Meta Scene API (Rooms) <!-- id: 18 -->
     - [ ] [RESEARCH] Evaluate Spatial SDK (Gaussian Splatting) <!-- id: 19 -->
-- [/] **Core Implementation**
+- [ ] **Core Implementation**
     - [ ] **Camera Module**
         - [ ] Implement Camera Access (WebCamTexture / Android Camera2 / Passthrough workaround) <!-- id: 5 -->
         - [ ] Implement Pose Tracking (OVRCameraRig / XR Origin) <!-- id: 6 -->
@@ -17,11 +17,12 @@
     - [ ] **Depth Module**
         - [ ] Integrate Meta & Depth API <!-- id: 8 -->
         - [ ] Capture Depth Maps aligned with RGB <!-- id: 9 -->
-    - [ ] **Data Management**
-        - [ ] Serialize intrinsics/extrinsics to JSON (Open3D format) <!-- id: 10 -->
-        - [ ] Save images (JPG/PNG) and depth (Raw/PNG) to storage <!-- id: 11 -->
-- [ ] **UI/UX**
-    - [ ] Create simple "Start/Stop Scan" Dashboard <!-- id: 12 -->
+    - [/] **Data Management (Offline Capable)**
+        - [x] Define ScanData structure (JSON/Open3D format) <!-- id: 10 -->
+        - [x] Implement File I/O (Save images/depth/json to disk) <!-- id: 11 -->
+        - [x] Create Mock Camera Provider for Editor Testing <!-- id: 20 -->
+- [/] **UI/UX (Offline Capable)**
+    - [x] Create simple "Start/Stop Scan" Dashboard <!-- id: 12 -->
     - [ ] Add status indicators (FPS, Buffer usage) <!-- id: 13 -->
 - [ ] **Integration**
     - [ ] Test Data Export to PC <!-- id: 15 -->
