@@ -14,13 +14,19 @@ namespace QuestGear3D.Scan.Data
         private ScanData _currentScanData;
         private bool _isScanning = false;
         
-        // Concurrent queue for async saving? 
-        // Or just fire and forget tasks
+        // Queue for background saving
+        private ConcurrentQueue<SaveRequest> _saveQueue = new ConcurrentQueue<SaveRequest>();
+        private bool _isProcessingQueue = false;
+
+        private struct SaveRequest
+        {
+            public string FilePath;
+            public byte[] Data;
+        }
         
         public void StartNewScan()
         {
             string scanName = $"Scan_{System.DateTime.Now:yyyyMMdd_HHmmss}";
-            // On Android/Quest, use persistentDataPath
             string basePath = Application.persistentDataPath;
             _currentScanFolder = Path.Combine(basePath, scanRootDirectory, scanName);
             
@@ -33,17 +39,27 @@ namespace QuestGear3D.Scan.Data
 
             _currentScanData = new ScanData();
             // TODO: Set intrinsics from actual camera
-            _currentScanData.intrinsic = new PinholeCameraIntrinsic(1280, 720, 1000, 1000, 640, 360); // Placeholder
+            _currentScanData.intrinsic = new PinholeCameraIntrinsic(1280, 720, 1000, 1000, 640, 360); 
             
             _isScanning = true;
+            _isProcessingQueue = true;
+            Task.Run(ProcessSaveQueue); // Start background consumer
+            
             Debug.Log($"Started scan: {_currentScanFolder}");
         }
 
         public void StopScan()
         {
             _isScanning = false;
-            SaveMetadata();
-            Debug.Log($"Stopped scan. Saved {_currentScanData.frames.Count} frames.");
+            SaveMetadata(); // Save JSON immediately on main thread (fast enough) or queue it? Main thread ensures consistency.
+            
+            // Allow queue to finish processing in background
+            // We don't set _isProcessingQueue to false immediately, we let it drain.
+            // But for simplicity here we just leave the task running until app close or next scan?
+            // Better to have a unified cancellation token or just let it loop given we might start scan again.
+            // For this implementation, we'll let the while loop behave gracefully.
+            
+            Debug.Log($"Stopped scan. Captured {_currentScanData.frames.Count} frames. Saving remaining files in background...");
         }
 
         public void CaptureFrame(Texture2D colorParams, Texture2D depthParams, Matrix4x4 cameraToWorldMatrix)
@@ -54,23 +70,18 @@ namespace QuestGear3D.Scan.Data
             double timestamp = Time.realtimeSinceStartupAsDouble;
             
             string colorFileName = $"color/frame_{frameId:D6}.jpg";
-            string depthFileName = $"depth/frame_{frameId:D6}.png"; // usually 16-bit PNG for depth
+            string depthFileName = $"depth/frame_{frameId:D6}.png"; 
             
-            // In a real app, we need to read pixels from GPU to CPU here.
-            // This is a bottleneck. We assume textures are already readable or we use AsyncGPUReadback.
-            // For now, simple implementation:
-            
+            // Encode on Main Thread (ImageConversion is standard Unity API)
+            // Ideally we move this to C++ plugin or job, but for now EncodeToJPG is the implementation.
             byte[] colorBytes = colorParams.EncodeToJPG(90);
-            byte[] depthBytes = depthParams.EncodeToPNG(); // Basic PNG
+            byte[] depthBytes = depthParams.EncodeToPNG(); 
             
-            // Save async
-            string fullColorPath = Path.Combine(_currentScanFolder, colorFileName);
-            string fullDepthPath = Path.Combine(_currentScanFolder, depthFileName);
-            
-            Task.Run(() => File.WriteAllBytes(fullColorPath, colorBytes));
-            Task.Run(() => File.WriteAllBytes(fullDepthPath, depthBytes));
+            // Queue saving
+            _saveQueue.Enqueue(new SaveRequest { FilePath = Path.Combine(_currentScanFolder, colorFileName), Data = colorBytes });
+            _saveQueue.Enqueue(new SaveRequest { FilePath = Path.Combine(_currentScanFolder, depthFileName), Data = depthBytes });
 
-            // Metadata
+            // Metadata update (Main Thread)
             ScanFrameMetadata metadata = new ScanFrameMetadata
             {
                 frame_id = frameId,
@@ -83,6 +94,23 @@ namespace QuestGear3D.Scan.Data
             _currentScanData.frames.Add(metadata);
         }
 
+        private async Task ProcessSaveQueue()
+        {
+            while (_isScanning || !_saveQueue.IsEmpty)
+            {
+                if (_saveQueue.TryDequeue(out SaveRequest request))
+                {
+                    await File.WriteAllBytesAsync(request.FilePath, request.Data);
+                }
+                else
+                {
+                    await Task.Delay(10); // Sleep if empty
+                }
+            }
+            _isProcessingQueue = false;
+            Debug.Log("Background Save Queue finished.");
+        }
+
         private void SaveMetadata()
         {
             string json = JsonUtility.ToJson(_currentScanData, true);
@@ -90,9 +118,10 @@ namespace QuestGear3D.Scan.Data
             File.WriteAllText(path, json);
         }
 
+        public int PendingSaveCount => _saveQueue.Count;
+
         private float[] MatrixToFloatArray(Matrix4x4 m)
         {
-            // Flatten generic matrix
             return new float[]
             {
                 m.m00, m.m01, m.m02, m.m03,

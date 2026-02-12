@@ -37,6 +37,15 @@ public class ScanDashboard : MonoBehaviour
         }
     }
 
+    void Update()
+    {
+        // Poll state just in case it changes externally
+        if (scanController != null && Time.frameCount % 10 == 0) // Update UI at ~6-12Hz
+        {
+            UpdateUI();
+        }
+    }
+
     void UpdateUI()
     {
         if (scanController == null) return;
@@ -45,15 +54,21 @@ public class ScanDashboard : MonoBehaviour
         
         if (startButton) startButton.interactable = !isScanning;
         if (stopButton) stopButton.interactable = isScanning;
-        if (statusText) statusText.text = isScanning ? "Scanning..." : "Ready to Scan";
-    }
-
-    void Update()
-    {
-        // Poll state just in case it changes externally
-        if (scanController != null && Time.frameCount % 10 == 0)
+        
+        if (statusText)
         {
-            UpdateUI();
+            if (isScanning)
+            {
+                int bufferCount = 0;
+                if (scanController.dataManager != null) 
+                    bufferCount = scanController.dataManager.PendingSaveCount;
+                    
+                statusText.text = $"Scanning... (Buffer: {bufferCount})";
+            }
+            else
+            {
+                statusText.text = "Ready to Scan";
+            }
         }
     }
 }
