@@ -1,23 +1,51 @@
-using UnityEngine;
-using UnityEngine.UI;
-using QuestGear3D.Scan.Core;
+using QuestGear3D.Scan.Integration;
 
-public class ScanDashboard : MonoBehaviour
-{
-    public ScanController scanController;
-    public Text statusText;
-    public Button startButton;
-    public Button stopButton;
+    public ScanFileServer fileServer;
 
     void Start()
     {
         if (scanController == null) scanController = FindObjectOfType<ScanController>();
+        if (fileServer == null) fileServer = FindObjectOfType<ScanFileServer>();
         
         if (startButton != null) startButton.onClick.AddListener(OnStartScan);
         if (stopButton != null) stopButton.onClick.AddListener(OnStopScan);
         
         UpdateUI();
     }
+    
+    // ... existing OnStartScan/OnStopScan ...
+
+    void UpdateUI()
+    {
+        if (scanController == null) return;
+        
+        bool isScanning = scanController.IsScanning;
+        
+        if (startButton) startButton.interactable = !isScanning;
+        if (stopButton) stopButton.interactable = isScanning;
+        
+        if (statusText)
+        {
+            if (isScanning)
+            {
+                int bufferCount = 0;
+                if (scanController.dataManager != null) 
+                    bufferCount = scanController.dataManager.PendingSaveCount;
+                    
+                statusText.text = $"Scanning... (Buffer: {bufferCount})";
+            }
+            else
+            {
+                string serverInfo = "";
+                if (fileServer != null && !string.IsNullOrEmpty(fileServer.ServerAddress))
+                {
+                    serverInfo = $"\nServer: {fileServer.ServerAddress}";
+                }
+                statusText.text = $"Ready to Scan{serverInfo}";
+            }
+        }
+    }
+}
 
     void OnStartScan()
     {

@@ -35,7 +35,21 @@ Since we don't always have the Quest 3 headset available, we have implemented an
     -   Link the Buttons and Text to the script.
     -   Link `[ScanController]` to the script.
 
-## How to Test
+5.  **Setup Data Export Server (Optional):**
+    -   Create an Empty GameObject `[FileServer]`.
+    -   Add the `ScanFileServer` script.
+    -   (Optional) Change port if needed (default 8080).
+    -   (Optional) Change port if needed (default 8080).
+    -   When running, the IP address will appear on the Dashboard.
+
+## Automated Verification
+To run an automatic health check:
+1.  Create an empty GameObject `[AutoTest]`.
+2.  Add `AutomatedWorkflowTest.cs` script.
+3.  Press Play.
+4.  Watch the Console for `[TEST] ALL CHECKS PASSED`.
+
+## How to Test (Manual)
 1.  Press **Play** in Unity Editor.
 2.  Click **Start Scan** (or press Space if Mock Provider has input enabled).
 3.  The Camera should assume an orbit around the target.

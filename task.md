@@ -28,6 +28,6 @@
     - [x] Create simple "Start/Stop Scan" Dashboard <!-- id: 12 -->
     - [x] Add status indicators (FPS, Buffer usage) <!-- id: 13 -->
 - [/] **Integration**
-    - [/] Test Data Export to PC <!-- id: 15 -->
-        - [ ] Create `SimpleHTTPServer` for Wi-Fi transfer <!-- id: 23 -->
+    - [x] Test Data Export to PC <!-- id: 15 -->
+        - [x] Create `SimpleHTTPServer` for Wi-Fi transfer <!-- id: 23 -->
     - [ ] Verify imported data in QuestGear 3D Studio <!-- id: 16 -->
