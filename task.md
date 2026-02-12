@@ -9,10 +9,13 @@
     - [/] [RESEARCH] Verify Depth API Access quality and format <!-- id: 4 -->
     - [ ] [RESEARCH] Evaluate Meta Scene API (Rooms) <!-- id: 18 -->
     - [ ] [RESEARCH] Evaluate Spatial SDK (Gaussian Splatting) <!-- id: 19 -->
-- [ ] **Core Implementation**
+- [/] **Core Implementation**
+    - [ ] **Architecture (Offline Safe)**
+        - [x] Define `IFrameProvider` interface (Color, Depth, Pose) <!-- id: 21 -->
+        - [x] Implement `ScanController` (Orchestrator) <!-- id: 22 -->
     - [ ] **Camera Module**
-        - [ ] Implement Camera Access (WebCamTexture / Android Camera2 / Passthrough workaround) <!-- id: 5 -->
-        - [ ] Implement Pose Tracking (OVRCameraRig / XR Origin) <!-- id: 6 -->
+        - [ ] Implement `QuestCameraProvider` (Wrapper around WebCamTexture/Passthrough) <!-- id: 5 -->
+        - [ ] Implement Pose Tracking (Wrapper around OVRCameraRig) <!-- id: 6 -->
         - [ ] Synchronize RGB + Pose Capture <!-- id: 7 -->
     - [ ] **Depth Module**
         - [ ] Integrate Meta & Depth API <!-- id: 8 -->

@@ -1,55 +1,48 @@
 using UnityEngine;
 using UnityEngine.UI;
-using QuestGear3D.Scan.Data;
+using QuestGear3D.Scan.Core;
 
 public class ScanDashboard : MonoBehaviour
 {
-    public ScanDataManager scanManager;
+    public ScanController scanController;
     public Text statusText;
     public Button startButton;
     public Button stopButton;
-    
-    // Optional: Reference to Mock provider to toggle it directly
-    public MockCameraProvider mockProvider;
 
     void Start()
     {
-        if (scanManager == null) scanManager = FindObjectOfType<ScanDataManager>();
+        if (scanController == null) scanController = FindObjectOfType<ScanController>();
         
         if (startButton != null) startButton.onClick.AddListener(OnStartScan);
         if (stopButton != null) stopButton.onClick.AddListener(OnStopScan);
         
-        UpdateUI(false);
+        UpdateUI();
     }
 
     void OnStartScan()
     {
-        if (mockProvider != null)
+        if (scanController != null)
         {
-            mockProvider.ToggleScan(); // Mock handles start internally
+            scanController.StartScan();
+            UpdateUI();
         }
-        else
-        {
-            scanManager.StartNewScan();
-        }
-        UpdateUI(true);
     }
 
     void OnStopScan()
     {
-        if (mockProvider != null)
+        if (scanController != null)
         {
-            mockProvider.ToggleScan(); // Mock handles stop
+            scanController.StopScan();
+            UpdateUI();
         }
-        else
-        {
-            scanManager.StopScan();
-        }
-        UpdateUI(false);
     }
 
-    void UpdateUI(bool isScanning)
+    void UpdateUI()
     {
+        if (scanController == null) return;
+        
+        bool isScanning = scanController.IsScanning;
+        
         if (startButton) startButton.interactable = !isScanning;
         if (stopButton) stopButton.interactable = isScanning;
         if (statusText) statusText.text = isScanning ? "Scanning..." : "Ready to Scan";
@@ -57,7 +50,10 @@ public class ScanDashboard : MonoBehaviour
 
     void Update()
     {
-        // Update FPS or Frame count if scanning
-        // We'd need to expose frame count from manager
+        // Poll state just in case it changes externally
+        if (scanController != null && Time.frameCount % 10 == 0)
+        {
+            UpdateUI();
+        }
     }
 }

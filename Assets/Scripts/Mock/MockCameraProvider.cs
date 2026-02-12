@@ -1,41 +1,82 @@
 using UnityEngine;
 using QuestGear3D.Scan.Data;
+using QuestGear3D.Scan.Core;
 
-public class MockCameraProvider : MonoBehaviour
+// Rename class or keep same? better keep same but implement interface
+public class MockCameraProvider : MonoBehaviour, IFrameProvider
 {
-    public ScanDataManager dataManager;
+    // Removed direct reference to dataManager. Controller handles logic.
+    // public ScanDataManager dataManager; 
+    
     public Transform targetPivot;
     public float rotationSpeed = 20f;
     
     public Camera mockCamera;
     public RenderTexture colorRT;
-    public RenderTexture depthRT;
+    public RenderTexture depthRT; // Optional
     
-    private bool _isScanning = false;
-    private float _timer = 0f;
-    public float captureInterval = 0.5f; // 2 FPS for testing
+    private bool _isStreaming = false; // Changed from _isScanning
+    private bool _hasNewFrame = false;
 
-    void Start()
+    // Interface Implementation
+    public void Initialize()
     {
-        if (dataManager == null) dataManager = FindObjectOfType<ScanDataManager>();
-        
         // Setup RTs if not assigned
         if (colorRT == null)
         {
             colorRT = new RenderTexture(1280, 720, 24);
             colorRT.Create();
         }
-        mockCamera.targetTexture = colorRT;
+        if (mockCamera != null)
+        {
+            mockCamera.targetTexture = colorRT;
+        }
+        Debug.Log("[MockProvider] Initialized");
+    }
+
+    public void StartStream()
+    {
+        _isStreaming = true;
+        Debug.Log("[MockProvider] Stream Started");
+    }
+
+    public void StopStream()
+    {
+        _isStreaming = false;
+        Debug.Log("[MockProvider] Stream Stopped");
+    }
+
+    public bool HasNewFrame()
+    {
+        return _hasNewFrame;
+    }
+
+    public FrameData GetLatestFrame()
+    {
+        _hasNewFrame = false; // Reset flag
+        
+        // Snapshot the RT
+        // Note: Creating new Texture2D every frame is perf heavy, but for Mock/Editor it's fine.
+        // In production we would reuse buffers.
+        Texture2D colorTex = ToTexture2D(colorRT);
+        
+        // Mock Depth (16-bit)
+        Texture2D depthTex = new Texture2D(1280, 720, TextureFormat.R16, false);
+        
+        return new FrameData
+        {
+            ColorTexture = colorTex,
+            DepthTexture = depthTex,
+            CameraPose = mockCamera.transform.localToWorldMatrix,
+            Timestamp = Time.realtimeSinceStartupAsDouble
+        };
     }
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            ToggleScan();
-        }
-
-        if (_isScanning)
+        // Simulate Camera Movement regardless of scanning state?
+        // Or only when streaming? Let's do only when streaming for now.
+        if (_isStreaming)
         {
             // Orbit
             if (targetPivot != null)
@@ -43,51 +84,12 @@ public class MockCameraProvider : MonoBehaviour
                 transform.RotateAround(targetPivot.position, Vector3.up, rotationSpeed * Time.deltaTime);
                 transform.LookAt(targetPivot);
             }
-
-            _timer += Time.deltaTime;
-            if (_timer >= captureInterval)
-            {
-                Capture();
-                _timer = 0f;
-            }
+            
+            // Mark new frame available every frame (or throttle if needed)
+            _hasNewFrame = true;
         }
     }
 
-    public void ToggleScan()
-    {
-        _isScanning = !_isScanning;
-        if (_isScanning)
-        {
-            dataManager.StartNewScan();
-            Debug.Log("Mock Scan Started (Press Space to Stop)");
-        }
-        else
-        {
-            dataManager.StopScan();
-            Debug.Log("Mock Scan Stopped");
-        }
-    }
-
-    void Capture()
-    {
-        // Snapshot the RT
-        Texture2D colorTex = ToTexture2D(colorRT);
-        // For depth, we just use the same image for now or a solid color if depthRT is null
-        Texture2D depthTex = new Texture2D(1280, 720, TextureFormat.R16, false); // 16-bit mock
-        
-        // Pass to manager
-        // CameraToWorld matrix
-        Matrix4x4 camToWorld = mockCamera.transform.localToWorldMatrix;
-        
-        dataManager.CaptureFrame(colorTex, depthTex, camToWorld);
-        
-        // Cleanup temp textures? 
-        // In real app we reuse buffers, here we rely on GC for simplicity in mock
-        // destroy immediate to avoid leak in editor
-        Destroy(colorTex);
-        Destroy(depthTex);
-    }
-    
     Texture2D ToTexture2D(RenderTexture rTex)
     {
         Texture2D tex = new Texture2D(rTex.width, rTex.height, TextureFormat.RGB24, false);

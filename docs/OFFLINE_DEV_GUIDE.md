@@ -18,16 +18,22 @@ Since we don't always have the Quest 3 headset available, we have implemented an
 2.  **Create a Mock Camera:**
     -   Create a Camera in the scene (or use Main Camera).
     -   Add the `MockCameraProvider` script to it.
-    -   Assign the `[ScanManager]` object to the `Data Manager` field.
     -   Create a target object (e.g., a Cube at 0,0,0) and assign it to `Target Pivot`.
+    -   *Note*: Do not link Data Manager here, Controller handles it.
 
-3.  **Setup UI Dashboard:**
+3.  **Create Scan Controller:**
+    -   Create an Empty GameObject `[ScanController]`.
+    -   Add `ScanController` script.
+    -   Assign `[ScanManager]` to `Data Manager`.
+    -   Assign `[MockCamera]` (the object with MockCameraProvider) to `Frame Provider Object`.
+
+4.  **Setup UI Dashboard:**
     -   Create a Canvas.
     -   Add buttons for "Start Scan" and "Stop Scan".
     -   Add a Text element for Status.
     -   Create an Empty GameObject `[Dashboard]` and add `ScanDashboard` script.
     -   Link the Buttons and Text to the script.
-    -   Link `[ScanManager]` and `[MockCameraProvider]` to the script.
+    -   Link `[ScanController]` to the script.
 
 ## How to Test
 1.  Press **Play** in Unity Editor.
