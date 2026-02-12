@@ -23,15 +23,11 @@ public class CameraAccessTest : MonoBehaviour
         }
     }
 
+    private bool _hasReceivedFrame = false;
+
     void Update()
     {
-        // Check permission polling if needed, but usually callbacks or restart handles it.
-        // For prototype, we just wait a bit or re-trigger.
-        
-        if (_webCamTexture != null && _webCamTexture.isPlaying)
-        {
-             // Optional: Update some texture on a Quad to see the feed
-        }
+        CheckCameraStatus();
     }
 
     public void InitializeCamera()
@@ -41,7 +37,8 @@ public class CameraAccessTest : MonoBehaviour
 
         if (devices.Length == 0)
         {
-            Log("No Camera devices found!");
+            Log("No Camera devices found! Attempting Passthrough fallback...");
+            // InitializePassthrough(); // Fallback to be implemented if WebCamTexture fails
             return;
         }
 
@@ -67,6 +64,19 @@ public class CameraAccessTest : MonoBehaviour
         catch (System.Exception e)
         {
             Log($"Error starting camera: {e.Message}");
+        }
+    }
+
+    // Check if camera is actually updating
+    void CheckCameraStatus()
+    {
+        if (!_hasReceivedFrame && _webCamTexture != null && _webCamTexture.isPlaying)
+        {
+            if (_webCamTexture.didUpdateThisFrame)
+            {
+                _hasReceivedFrame = true;
+                Log($"First Camera frame received! Res: {_webCamTexture.width}x{_webCamTexture.height}");
+            }
         }
     }
 

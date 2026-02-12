@@ -15,6 +15,9 @@ QuestGear 3D Scan facilitates the capture of high-quality data for 3D reconstruc
 2.  **Export**: Transfer the captured data to your PC via USB or Wi-Fi.
 3.  **Process**: Use **QuestGear 3D Studio** to reconstruct the detailed 3D model.
 
-## Status
+## Documentation
+- [Feasibility Testing Guide](docs/FEASIBILITY_TESTS.md): Instructions for verifying Camera, Depth, and Scene API access.
+
+## Getting Started
 
 🚧 **Under Development** 🚧

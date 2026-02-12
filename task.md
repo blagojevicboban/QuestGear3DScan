@@ -1,12 +1,14 @@
 # QuestGear 3D Scan - Development Tasks
 
-- [ ] **Project Setup**
-    - [ ] Create Unity Project (User Action required) <!-- id: 0 -->
-    - [ ] Configure Project for Quest 3 (Android Platform, OpenXR) <!-- id: 1 -->
-    - [ ] Import Meta XR Core SDK & All-in-One SDK <!-- id: 2 -->
+- [x] **Project Setup**
+    - [x] Create Unity Project (User Action required) <!-- id: 0 -->
+    - [x] Configure Project for Quest 3 (Android Platform, OpenXR) <!-- id: 1 -->
+    - [x] Import Meta XR Core SDK & All-in-One SDK <!-- id: 2 -->
 - [ ] **Feasibility Research (Critical)**
-    - [ ] [RESEARCH] Verify Raw RGB Camera Access on Quest 3 Standalone <!-- id: 3 -->
-    - [ ] [RESEARCH] Verify Depth API Access quality and format <!-- id: 4 -->
+    - [/] [RESEARCH] Verify Raw RGB Camera Access on Quest 3 Standalone <!-- id: 3 -->
+    - [/] [RESEARCH] Verify Depth API Access quality and format <!-- id: 4 -->
+    - [ ] [RESEARCH] Evaluate Meta Scene API (Rooms) <!-- id: 18 -->
+    - [ ] [RESEARCH] Evaluate Spatial SDK (Gaussian Splatting) <!-- id: 19 -->
 - [/] **Core Implementation**
     - [ ] **Camera Module**
         - [ ] Implement Camera Access (WebCamTexture / Android Camera2 / Passthrough workaround) <!-- id: 5 -->

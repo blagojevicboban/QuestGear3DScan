@@ -30,9 +30,10 @@ public class DepthAccessTest : MonoBehaviour
         msg += $"OVRManager: {(OVRManager.instance != null ? "Found" : "Missing")}\n";
         msg += $"Headset: {OVRPlugin.GetSystemHeadsetType()}\n";
         
-        // Try to get hand tracking status just to confirm sensor access
-        // msg += $"Hands Active: {OVRInput.GetActiveController() == OVRInput.Controller.Hands}\n";
-
+        // Check for Depth Support
+        bool depthSupported = OVRPlugin.IsInsightPassthroughSupported(); // Approximate check
+        msg += $"Passthrough Supported: {depthSupported}\n";
+        
         if (statusText != null) statusText.text = msg;
     }
 
