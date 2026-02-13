@@ -30,7 +30,7 @@ public class SceneApiTest : MonoBehaviour
         {
             // Request Scene Capture directly via OVRPlugin
             // The string argument is a JSON request string, empty for default behavior.
-            if (OVRPlugin.RequestSceneCapture("", out var _))
+            if (OVRPlugin.RequestSceneCapture(out var requestJson))
             {
                 Log("Scene Capture requested successfully.");
             }

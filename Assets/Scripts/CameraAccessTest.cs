@@ -1,3 +1,7 @@
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.Android;
+
 // [DEPRECATED]
 // This script was used for initial feasibility testing.
 // The production logic has been moved to Assets/Scripts/Core/QuestCameraProvider.cs

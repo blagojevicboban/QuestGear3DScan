@@ -1,6 +1,16 @@
+using UnityEngine;
+using UnityEngine.UI;
+using QuestGear3D.Scan.Core;
 using QuestGear3D.Scan.Integration;
 
+public class ScanDashboard : MonoBehaviour
+{
+    public ScanController scanController;
     public ScanFileServer fileServer;
+    
+    public Text statusText;
+    public Button startButton;
+    public Button stopButton;
 
     void Start()
     {
@@ -12,40 +22,6 @@ using QuestGear3D.Scan.Integration;
         
         UpdateUI();
     }
-    
-    // ... existing OnStartScan/OnStopScan ...
-
-    void UpdateUI()
-    {
-        if (scanController == null) return;
-        
-        bool isScanning = scanController.IsScanning;
-        
-        if (startButton) startButton.interactable = !isScanning;
-        if (stopButton) stopButton.interactable = isScanning;
-        
-        if (statusText)
-        {
-            if (isScanning)
-            {
-                int bufferCount = 0;
-                if (scanController.dataManager != null) 
-                    bufferCount = scanController.dataManager.PendingSaveCount;
-                    
-                statusText.text = $"Scanning... (Buffer: {bufferCount})";
-            }
-            else
-            {
-                string serverInfo = "";
-                if (fileServer != null && !string.IsNullOrEmpty(fileServer.ServerAddress))
-                {
-                    serverInfo = $"\nServer: {fileServer.ServerAddress}";
-                }
-                statusText.text = $"Ready to Scan{serverInfo}";
-            }
-        }
-    }
-}
 
     void OnStartScan()
     {
@@ -95,7 +71,12 @@ using QuestGear3D.Scan.Integration;
             }
             else
             {
-                statusText.text = "Ready to Scan";
+                string serverInfo = "";
+                if (fileServer != null && !string.IsNullOrEmpty(fileServer.ServerAddress))
+                {
+                    serverInfo = $"\nServer: {fileServer.ServerAddress}";
+                }
+                statusText.text = $"Ready to Scan{serverInfo}";
             }
         }
     }
