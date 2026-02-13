@@ -42,7 +42,24 @@ Since we don't always have the Quest 3 headset available, we have implemented an
     -   (Optional) Change port if needed (default 8080).
     -   When running, the IP address will appear on the Dashboard.
 
-## Automated Verification
+## D. Testing with Meta XR Simulator (Recommended)
+
+The **Meta XR Simulator** allows you to test the app on your PC while simulating headset tracking.
+
+### Setup
+1.  Go to `Edit > Project Settings > XR Plug-in Management`.
+2.  Enable the **Oculus** checkbox for the **Windows/PC** tab (Monitor icon).
+3.  Launch the **Meta XR Simulator** from Unity or external tool.
+
+### How to Run
+1.  In `ScanController`, ensure `QuestCameraProvider` is assigned (instead of Mock).
+    -   *Note*: Simulator provides tracking data via `OVRCameraRig`.
+    -   *Note*: `WebCamTexture` will likely use your PC's webcam if available.
+2.  Press **Play** in Unity.
+3.  Use the Simulator controls (WASD + Mouse) to move the "Headset".
+4.  Scanning will record data using the simulated position and PC Webcam feed.
+
+## E. Automated Verification
 To run an automatic health check:
 1.  Create an empty GameObject `[AutoTest]`.
 2.  Add `AutomatedWorkflowTest.cs` script.

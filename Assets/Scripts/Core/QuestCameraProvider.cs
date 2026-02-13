@@ -55,7 +55,15 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
         }
         else
         {
-            Debug.LogError("[QuestProvider] No Camera devices found!");
+            Debug.LogWarning("[QuestProvider] No Camera devices found! Using synthetic fallback for Simulator/Editor.");
+            _latestColorTexture = new Texture2D(requestedWidth, requestedHeight, TextureFormat.RGB24, false);
+            // Fill with debug color
+            Color[] pixels = new Color[requestedWidth * requestedHeight];
+            for(int i=0; i<pixels.Length; i++) pixels[i] = Color.magenta;
+            _latestColorTexture.SetPixels(pixels);
+            _latestColorTexture.Apply();
+            
+            _latestDepthTexture = new Texture2D(requestedWidth, requestedHeight, TextureFormat.R16, false);
         }
     }
 
@@ -86,22 +94,18 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
 
     public FrameData GetLatestFrame()
     {
-        // Re-check stream status
-        if (_webCamTexture == null || !_webCamTexture.isPlaying)
+        // If webcam is active, update textures
+        if (_webCamTexture != null && _webCamTexture.isPlaying)
         {
-            return new FrameData(); // Return empty struct
+            if (_latestColorTexture.width != _webCamTexture.width || _latestColorTexture.height != _webCamTexture.height)
+            {
+                _latestColorTexture.Reinitialize(_webCamTexture.width, _webCamTexture.height);
+                _latestDepthTexture.Reinitialize(_webCamTexture.width, _webCamTexture.height);
+            }
+            _latestColorTexture.SetPixels32(_webCamTexture.GetPixels32());
+            _latestColorTexture.Apply();
         }
-
-        // Initialize textures if needed (lazy init)
-        if (_latestColorTexture == null || _latestColorTexture.width != _webCamTexture.width || _latestColorTexture.height != _webCamTexture.height)
-        {
-             _latestColorTexture = new Texture2D(_webCamTexture.width, _webCamTexture.height, TextureFormat.RGB24, false);
-             _latestDepthTexture = new Texture2D(_webCamTexture.width, _webCamTexture.height, TextureFormat.R16, false);
-        }
-
-        // Apply pixels
-        _latestColorTexture.SetPixels32(_webCamTexture.GetPixels32());
-        _latestColorTexture.Apply();
+        // If no webcam (Simulator fallback), keep existing texture (magenta)
 
         return new FrameData
         {
