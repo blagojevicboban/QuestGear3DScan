@@ -38,35 +38,17 @@ namespace QuestGear3D.Scan.UI
             
             // Set initial status
             UpdateStatus("System Initializing...");
+
+            // HAPTIC FEEDBACK ON START (Confirm script runs)
+            OVRInput.SetControllerVibration(1, 1, OVRInput.Controller.RTouch);
+            OVRInput.SetControllerVibration(1, 1, OVRInput.Controller.LTouch);
+            Invoke("StopVibration", 0.5f);
         }
 
-        void SetupUI()
+        void StopVibration()
         {
-            if (mainCanvas != null)
-            {
-                mainCanvas.renderMode = RenderMode.WorldSpace;
-                
-                // Force parent to Main Camera (Head-Locked)
-                if (Camera.main != null)
-                {
-                    mainCanvas.transform.SetParent(Camera.main.transform, false);
-                    mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.5f); // 50cm in front, slightly down
-                    mainCanvas.transform.localRotation = Quaternion.identity;
-                    mainCanvas.transform.localScale = Vector3.one * 0.001f; // Correct scale for World Space
-                }
-                else
-                {
-                    // Fallback if MainCamera not tagged
-                    var cam = FindObjectOfType<Camera>();
-                    if (cam != null)
-                    {
-                        mainCanvas.transform.SetParent(cam.transform, false);
-                        mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.5f);
-                        mainCanvas.transform.localRotation = Quaternion.identity;
-                        mainCanvas.transform.localScale = Vector3.one * 0.001f;
-                    }
-                }
-            }
+            OVRInput.SetControllerVibration(0, 0, OVRInput.Controller.RTouch);
+            OVRInput.SetControllerVibration(0, 0, OVRInput.Controller.LTouch);
         }
 
         void Update()
@@ -80,13 +62,36 @@ namespace QuestGear3D.Scan.UI
                     cameraPreview.texture = tex;
                 }
             }
+            
+            // Controller Input Check (A / Trigger / X / Any Trigger)
+            if (OVRInput.GetDown(OVRInput.Button.One) || 
+                OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger) || 
+                OVRInput.GetDown(OVRInput.Button.SecondaryIndexTrigger) ||
+                Input.GetKeyDown(KeyCode.Space) ||
+                Input.GetMouseButtonDown(0))
+            {
+                // HAPTIC FEEDBACK ON CLICK
+                OVRInput.SetControllerVibration(0.5f, 0.5f, OVRInput.Controller.RTouch);
+                OVRInput.SetControllerVibration(0.5f, 0.5f, OVRInput.Controller.LTouch);
+                Invoke("StopVibration", 0.2f);
+                
+                // VISUAL FLASH (On Camera Background)
+                if (Camera.main != null)
+                {
+                    Camera.main.backgroundColor = _isScanning ? Color.black : Color.green;
+                    Camera.main.clearFlags = CameraClearFlags.SolidColor; 
+                    // Note: This overrides passthrough momentarily if successful, which is good for debug
+                }
+
+                OnMainActionClicked();
+            }
 
             // Update Status based on Controller state
             if (scanController != null)
             {
                 if (scanController.IsScanning)
                 {
-                    UpdateStatus("Scanning... (Active)");
+                    UpdateStatus("Scanning... (Active)\nPress 'A' or Trigger to Stop");
                     UpdateButtonText("STOP SCAN");
                     _isScanning = true;
                 }
@@ -99,7 +104,7 @@ namespace QuestGear3D.Scan.UI
                     }
                     else
                     {
-                         UpdateStatus("Ready to Scan");
+                         UpdateStatus("Ready to Scan\nPress 'A' or Trigger to Start");
                     }
                     UpdateButtonText("START SCAN");
                 }
@@ -128,6 +133,40 @@ namespace QuestGear3D.Scan.UI
         void UpdateButtonText(string text)
         {
             if (buttonText != null) buttonText.text = text;
+        }
+        void SetupUI()
+        {
+            if (mainCanvas != null)
+            {
+                mainCanvas.renderMode = RenderMode.WorldSpace;
+               
+                // Find ANY camera
+                Camera cam = Camera.main;
+                if (cam == null) cam = FindObjectOfType<Camera>();
+                
+                if (cam != null)
+                {
+                    Debug.Log($"[ScanUI] Found Camera: {cam.name}");
+                    mainCanvas.transform.SetParent(cam.transform, false);
+                    mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.5f);
+                    mainCanvas.transform.localRotation = Quaternion.identity;
+                    mainCanvas.transform.localScale = Vector3.one * 0.001f;
+                }
+                else
+                {
+                    Debug.LogError("[ScanUI] NO CAMERA FOUND!");
+                }
+            }
+        }
+
+        void LateUpdate()
+        {
+             // FORCE position every frame for debugging
+             if (mainCanvas != null && mainCanvas.transform.parent != null)
+             {
+                 mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.5f);
+                 mainCanvas.transform.localRotation = Quaternion.identity;
+             }
         }
     }
 }

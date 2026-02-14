@@ -10,17 +10,17 @@
     - [x] [RESEARCH] Evaluate Meta Scene API (Rooms) <!-- id: 18 -->
     - [ ] [RESEARCH] Evaluate Spatial SDK (Gaussian Splatting) <!-- id: 19 -->
 - [/] **Core Implementation**
-    - [ ] **Architecture (Offline Safe)**
+    - [x] **Architecture (Offline Safe)**
         - [x] Define `IFrameProvider` interface (Color, Depth, Pose) <!-- id: 21 -->
         - [x] Implement `ScanController` (Orchestrator) <!-- id: 22 -->
-    - [ ] **Camera Module**
+    - [/] **Camera Module**
         - [x] Implement `QuestCameraProvider` (Wrapper around WebCamTexture/Passthrough) <!-- id: 5 -->
-        - [ ] Implement Pose Tracking (Wrapper around OVRCameraRig) <!-- id: 6 -->
-        - [ ] Synchronize RGB + Pose Capture <!-- id: 7 -->
+        - [x] Implement Pose Tracking (Wrapper around OVRCameraRig) <!-- id: 6 -->
+        - [x] Synchronize RGB + Pose Capture <!-- id: 7 -->
     - [ ] **Depth Module**
         - [ ] Integrate Meta & Depth API <!-- id: 8 -->
         - [ ] Capture Depth Maps aligned with RGB <!-- id: 9 -->
-    - [/] **Data Management (Offline Capable)**
+    - [x] **Data Management (Offline Capable)**
         - [x] Define ScanData structure (JSON/Open3D format) <!-- id: 10 -->
         - [x] Implement File I/O (Save images/depth/json to disk) <!-- id: 11 -->
         - [x] Create Mock Camera Provider for Editor Testing <!-- id: 20 -->
