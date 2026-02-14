@@ -127,7 +127,7 @@ namespace QuestGear3D.Scan.UI
                     }
                     else if (!_isShowingSavedMessage) // Only show Ready if not showing saved message
                     {
-                         UpdateStatus($"{modeText}\nReady to Scan\nPress 'A' to Start\nPress 'X' to Switch Mode");
+                            UpdateStatus($"{modeText}\nReady to Scan\nPress 'A' to Start\nPress 'X' to Switch Mode");
                     }
                     UpdateButtonText("START SCAN");
                 }
@@ -177,32 +177,83 @@ namespace QuestGear3D.Scan.UI
             {
                 mainCanvas.renderMode = RenderMode.WorldSpace;
                
-                // Find ANY camera
-                Camera cam = Camera.main;
-                if (cam == null) cam = FindObjectOfType<Camera>();
-                
-                if (cam != null)
+                // Find OVRCameraRig anchors
+                Transform anchor = null;
+                OVRCameraRig rig = FindObjectOfType<OVRCameraRig>();
+                if (rig != null)
                 {
-                    Debug.Log($"[ScanUI] Found Camera: {cam.name}");
-                    mainCanvas.transform.SetParent(cam.transform, false);
-                    mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.5f);
-                    mainCanvas.transform.localRotation = Quaternion.identity;
-                    mainCanvas.transform.localScale = Vector3.one * 0.001f;
+                    // Try Left Hand Anchor (Watch Style)
+                    anchor = rig.leftHandAnchor;
+                    Debug.Log("[ScanUI] Found OVRCameraRig Left Hand Anchor.");
+                }
+                
+                // Fallback to Main Camera (Head) if no rig or hand
+                if (anchor == null)
+                {
+                     Camera cam = Camera.main;
+                     if (cam == null) cam = FindObjectOfType<Camera>();
+                     if (cam != null) anchor = cam.transform;
+                }
+
+                if (anchor != null)
+                {
+                    mainCanvas.transform.SetParent(anchor, false);
+                    ResetUIPosition(); // Apply initial position
                 }
                 else
                 {
-                    Debug.LogError("[ScanUI] NO CAMERA FOUND!");
+                    Debug.LogError("[ScanUI] NO ANCHOR FOUND!");
                 }
+            }
+        }
+
+        public void ResetUIPosition()
+        {
+            if (mainCanvas == null) return;
+            
+            // Force Resolution/Size
+            RectTransform rt = mainCanvas.GetComponent<RectTransform>();
+            if (rt != null)
+            {
+                rt.sizeDelta = new Vector2(600, 400); // Ensure it has size!
+            }
+
+            // Check if attached to Hand or Head
+            OVRCameraRig rig = FindObjectOfType<OVRCameraRig>();
+            bool isHand = (rig != null && mainCanvas.transform.parent == rig.leftHandAnchor);
+
+            if (isHand)
+            {
+                // wrist Watch
+                mainCanvas.transform.localPosition = new Vector3(0.05f, 0.05f, 0.15f); 
+                mainCanvas.transform.localRotation = Quaternion.Euler(45, 0, 0);
+                mainCanvas.transform.localScale = Vector3.one * 0.0008f;
+            }
+            else
+            {
+                // Head Floating
+                mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.6f); 
+                mainCanvas.transform.localRotation = Quaternion.identity;
+                mainCanvas.transform.localScale = Vector3.one * 0.001f;
             }
         }
 
         void LateUpdate()
         {
-             // FORCE position every frame for debugging
-             if (mainCanvas != null && mainCanvas.transform.parent != null)
+             // Input to Recenter UI (Y Button)
+             if (OVRInput.GetDown(OVRInput.Button.Four))
              {
-                 mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.5f);
-                 mainCanvas.transform.localRotation = Quaternion.identity;
+                 Debug.Log("[ScanUI] Recenter UI Requested");
+                 // Move to Head
+                 Camera cam = Camera.main;
+                 if (cam != null)
+                 {
+                     mainCanvas.transform.SetParent(cam.transform, false);
+                     ResetUIPosition();
+                     // Vibrate
+                     OVRInput.SetControllerVibration(0.5f, 0.5f, OVRInput.Controller.LTouch);
+                     Invoke("StopVibration", 0.2f);
+                 }
              }
         }
 
