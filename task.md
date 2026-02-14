@@ -6,8 +6,8 @@
     - [x] Import Meta XR Core SDK & All-in-One SDK <!-- id: 2 -->
 - [ ] **Feasibility Research (Critical)**
     - [x] [RESEARCH] Verify Raw RGB Camera Access on Quest 3 Standalone <!-- id: 3 -->
-    - [/] [RESEARCH] Verify Depth API Access quality and format <!-- id: 4 -->
-    - [ ] [RESEARCH] Evaluate Meta Scene API (Rooms) <!-- id: 18 -->
+    - [x] [RESEARCH] Verify Depth API Access quality and format <!-- id: 4 -->
+    - [x] [RESEARCH] Evaluate Meta Scene API (Rooms) <!-- id: 18 -->
     - [ ] [RESEARCH] Evaluate Spatial SDK (Gaussian Splatting) <!-- id: 19 -->
 - [/] **Core Implementation**
     - [ ] **Architecture (Offline Safe)**
