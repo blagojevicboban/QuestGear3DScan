@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 using QuestGear3D.Scan.Core;
 using QuestGear3D.Scan.Integration;
+using QuestGear3D.Scan.Data;
 
 public class AutomatedWorkflowTest : MonoBehaviour
 {
@@ -26,8 +27,12 @@ public class AutomatedWorkflowTest : MonoBehaviour
 
         if (scanController == null) { Fail("ScanController not found!"); yield break; }
         
+        // Ensure immediate start for testing
+        scanController.startDelay = 0f;
+        scanController.currentScanMode = ScanMode.Object;
+        
         // 2. Start Scan
-        Debug.Log("[TEST] Starting Scan...");
+        Debug.Log("[TEST] Starting Scan (Object Mode)...");
         scanController.StartScan();
         
         if (!scanController.IsScanning) { Fail("Failed to start scan!"); yield break; }

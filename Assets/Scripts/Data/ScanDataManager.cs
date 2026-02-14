@@ -24,7 +24,7 @@ namespace QuestGear3D.Scan.Data
             public byte[] Data;
         }
         
-        public void StartNewScan()
+        public void StartNewScan(ScanMode mode, ScanSettings settings)
         {
             string scanName = $"Scan_{System.DateTime.Now:yyyyMMdd_HHmmss}";
             string basePath = Application.persistentDataPath;
@@ -38,6 +38,10 @@ namespace QuestGear3D.Scan.Data
             }
 
             _currentScanData = new ScanData();
+            _currentScanData.scanId = scanName;
+            _currentScanData.scanMode = mode.ToString();
+            _currentScanData.settings = settings;
+            
             // TODO: Set intrinsics from actual camera
             _currentScanData.intrinsic = new PinholeCameraIntrinsic(1280, 720, 1000, 1000, 640, 360); 
             
@@ -45,7 +49,7 @@ namespace QuestGear3D.Scan.Data
             _isProcessingQueue = true;
             Task.Run(ProcessSaveQueue); // Start background consumer
             
-            Debug.Log($"Started scan: {_currentScanFolder}");
+            Debug.Log($"Started scan: {_currentScanFolder} (Mode: {mode})");
         }
 
         public void StopScan()

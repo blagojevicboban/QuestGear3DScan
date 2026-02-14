@@ -5,7 +5,7 @@
     - [x] Configure Project for Quest 3 (Android Platform, OpenXR) <!-- id: 1 -->
     - [x] Import Meta XR Core SDK & All-in-One SDK <!-- id: 2 -->
 - [ ] **Feasibility Research (Critical)**
-    - [/] [RESEARCH] Verify Raw RGB Camera Access on Quest 3 Standalone <!-- id: 3 -->
+    - [x] [RESEARCH] Verify Raw RGB Camera Access on Quest 3 Standalone <!-- id: 3 -->
     - [/] [RESEARCH] Verify Depth API Access quality and format <!-- id: 4 -->
     - [ ] [RESEARCH] Evaluate Meta Scene API (Rooms) <!-- id: 18 -->
     - [ ] [RESEARCH] Evaluate Spatial SDK (Gaussian Splatting) <!-- id: 19 -->
@@ -31,3 +31,6 @@
     - [x] Test Data Export to PC <!-- id: 15 -->
         - [x] Create `SimpleHTTPServer` for Wi-Fi transfer <!-- id: 23 -->
     - [ ] Verify imported data in QuestGear 3D Studio <!-- id: 16 -->
+- [x] **Documentation**
+    - [x] Update README with Scan Modes <!-- id: 24 -->
+    - [x] Update README with Configuration Options <!-- id: 25 -->

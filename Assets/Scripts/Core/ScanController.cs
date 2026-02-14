@@ -5,6 +5,13 @@ namespace QuestGear3D.Scan.Core
 {
     public class ScanController : MonoBehaviour
     {
+        [Header("Scan Configuration")]
+        public ScanMode currentScanMode = ScanMode.Object;
+        public Vector2Int captureResolution = new Vector2Int(1920, 1080);
+        [Range(1, 60)] public int targetFPS = 30;
+        public bool useFlashlight = false;
+        [Range(0f, 10f)] public float startDelay = 0f;
+
         [Header("Dependencies")]
         public ScanDataManager dataManager;
         // Interface reference - assigned via dragging a MonoBehaviour that implements it
@@ -12,8 +19,8 @@ namespace QuestGear3D.Scan.Core
         public MonoBehaviour frameProviderObject; 
         private IFrameProvider _frameProvider;
 
-        [Header("Settings")]
-        public float captureFPS = 5f; // Target capture rate
+        [Header("Internal")]
+        // public float captureFPS = 5f; // REPLACED by targetFPS
         private float _captureInterval;
         private float _timer;
         private bool _isScanning = false;
@@ -28,8 +35,6 @@ namespace QuestGear3D.Scan.Core
             {
                 Debug.LogError("[ScanController] Frame Provider Object does not implement IFrameProvider!");
             }
-            
-            _captureInterval = 1f / captureFPS;
         }
 
         void Start()
@@ -38,18 +43,60 @@ namespace QuestGear3D.Scan.Core
              {
                  _frameProvider.Initialize();
              }
+             UpdateCaptureInterval();
         }
+
+        private void UpdateCaptureInterval()
+        {
+             _captureInterval = 1f / targetFPS;
+        }
+
+        public float CurrentCountdown { get; private set; }
 
         public void StartScan()
         {
             if (_isScanning) return;
-            
-            if (dataManager != null) dataManager.StartNewScan();
-            if (_frameProvider != null) _frameProvider.StartStream();
+            StartCoroutine(StartScanRoutine());
+        }
+
+        private System.Collections.IEnumerator StartScanRoutine()
+        {
+            if (startDelay > 0)
+            {
+                CurrentCountdown = startDelay;
+                while (CurrentCountdown > 0)
+                {
+                    yield return null;
+                    CurrentCountdown -= Time.deltaTime;
+                }
+                CurrentCountdown = 0f;
+            }
+
+            // Apply Settings
+            if (_frameProvider != null)
+            {
+                _frameProvider.SetResolution(captureResolution.x, captureResolution.y);
+                _frameProvider.SetFPS(targetFPS);
+                _frameProvider.SetFlashlight(useFlashlight);
+                _frameProvider.StartStream();
+            }
+
+            UpdateCaptureInterval();
+
+            if (dataManager != null)
+            {
+                 ScanSettings settings = new ScanSettings
+                 {
+                     resolution = $"{captureResolution.x}x{captureResolution.y}",
+                     targetFPS = targetFPS,
+                     useFlashlight = useFlashlight
+                 };
+                 dataManager.StartNewScan(currentScanMode, settings);
+            }
             
             _isScanning = true;
             _timer = 0f;
-            Debug.Log("[ScanController] Scan Started");
+            Debug.Log($"[ScanController] Scan Started (Mode: {currentScanMode})");
         }
 
         public void StopScan()

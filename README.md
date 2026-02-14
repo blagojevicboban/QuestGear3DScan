@@ -10,6 +10,20 @@
 -   **Offline Dev Mode**: Full mock implementation for testing without a headset in Unity Editor.
 -   **Async I/O**: High-performance non-blocking data serialization.
 
+## 📷 Scan Modes
+
+The application supports two distinct scanning modes tailored for different use cases:
+
+-   **Object Mode**: 
+    -   Optimized for capturing small to medium-sized objects.
+    -   Focuses on detailed geometry and texture of a centered subject.
+    -   Ideal for product scanning, artifacts, and props.
+
+-   **Space Mode**: 
+    -   Designed for room-scale scanning and environment capture.
+    -   Captures broader geometry with a focus on spatial layout.
+    -   Ideal for architectural surveys, room walkthroughs, and VR environment creation.
+
 ## 📦 Installation
 
 ### Prerequisites
@@ -24,6 +38,13 @@
 4.  Click **Build & Run**.
 
 ## 🎮 How to Use
+
+### Configuration
+Before scanning, you can configure the following settings via the inspector (on `ScanController`) or UI (if exposed):
+-   **Resolution**: Default is `1920x1080`. Higher resolutions provide more detail but may impact performance.
+-   **Target FPS**: Adjust the capture frame rate (default broadcast is 30 FPS).
+-   **Flashlight**: Toggle to enable the device flashlight for better lighting in dim environments.
+-   **Start Delay**: Set a delay (in seconds) to position yourself before scanning starts.
 
 ### 1. Scanning
 1.  Launch the app on your Quest 3.

@@ -26,6 +26,13 @@ namespace QuestGear3D.Scan.Core
 
         // Retrieves the latest frame data. 
         // Should return a FrameData with valid textures/matrices.
+        // Retrieves the latest frame data. 
+        // Should return a FrameData with valid textures/matrices.
         FrameData GetLatestFrame();
+
+        // Configuration
+        void SetResolution(int width, int height);
+        void SetFPS(int fps);
+        void SetFlashlight(bool enabled);
     }
 }

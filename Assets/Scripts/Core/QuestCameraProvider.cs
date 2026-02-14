@@ -123,4 +123,32 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             _hasNewFrame = true;
         }
     }
+
+    public void SetResolution(int width, int height)
+    {
+        if (requestedWidth == width && requestedHeight == height) return;
+        requestedWidth = width;
+        requestedHeight = height;
+        if (_isStreaming) RestartStream();
+    }
+
+    public void SetFPS(int fps)
+    {
+        if (requestedFPS == fps) return;
+        requestedFPS = fps;
+        if (_isStreaming) RestartStream();
+    }
+
+    public void SetFlashlight(bool enabled)
+    {
+        // TODO: Implement Android Torch API
+        Debug.Log($"[QuestCameraProvider] Flashlight {(enabled ? "ON" : "OFF")} (Not implemented)");
+    }
+
+    private void RestartStream()
+    {
+        StopStream();
+        Initialize(); 
+        StartStream();
+    }
 }

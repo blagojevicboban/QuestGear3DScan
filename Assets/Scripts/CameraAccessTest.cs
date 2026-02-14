@@ -1,39 +1,100 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Android;
-
-// [DEPRECATED]
-// This script was used for initial feasibility testing.
-// The production logic has been moved to Assets/Scripts/Core/QuestCameraProvider.cs
-// and is managed by ScanController.
-// Keep this script only for quick standalone tests.
+using System.Collections;
 
 public class CameraAccessTest : MonoBehaviour
 {
-    public Text statusText; // Assign a Legacy UI Text in inspector
+    public Text statusText; // Assign a UI Text in inspector
     private WebCamTexture _webCamTexture;
+    private string _logBuffer = "";
 
     void Start()
     {
-        Log("Initializing...");
-        
-        // 1. Request Permission (Android 10+ needs this explicit call often)
-        if (!Permission.HasUserAuthorizedPermission(Permission.Camera))
+        // Force create a World Space canvas if UI is missing (common issue in VR)
+        if (statusText == null)
         {
-            Log("Requesting Camera Permission...");
-            Permission.RequestUserPermission(Permission.Camera);
+            CreateDebugUI();
+        }
+
+        Log("Initializing Camera Test...");
+        
+        StartCoroutine(AskAndCheckPermission());
+    }
+
+    IEnumerator AskAndCheckPermission()
+    {
+        if (Permission.HasUserAuthorizedPermission(Permission.Camera))
+        {
+            Log("Permission ALREADY Granted!");
+            InitializeCamera();
+            yield break;
+        }
+
+        Log("Requesting Permission... PLEASE CLICK ALLOW!");
+        Permission.RequestUserPermission(Permission.Camera);
+
+        // Wait up to 60 seconds for user to click Allow
+        float timeout = 60f;
+        while (timeout > 0)
+        {
+            if (Permission.HasUserAuthorizedPermission(Permission.Camera))
+            {
+                Log("Permission Granted! Starting Camera...");
+                InitializeCamera();
+                yield break;
+            }
+            yield return new WaitForSeconds(0.5f);
+            timeout -= 0.5f;
+        }
+
+        Log("ERROR: Permission Timed Out. Please restart and Allow.");
+    }
+
+    void CreateDebugUI()
+    {
+        GameObject canvasObj = new GameObject("DebugCanvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        canvasObj.AddComponent<CanvasScaler>();
+        canvasObj.AddComponent<GraphicRaycaster>();
+
+        // Always attach to Main Camera (Head-Locked UI for debugging)
+        if (Camera.main != null)
+        {
+            canvasObj.transform.SetParent(Camera.main.transform, false);
+            canvasObj.transform.localPosition = new Vector3(0, 0, 0.5f); // 50cm in front
+            canvasObj.transform.localRotation = Quaternion.identity;
         }
         else
         {
-            InitializeCamera();
+            canvasObj.transform.position = new Vector3(0, 0, 0.5f);
         }
-    }
+        
+        canvasObj.transform.localScale = Vector3.one * 0.001f; // Smaller scale (0.001 -> 80cm wide text area)
+        
+        GameObject textObj = new GameObject("DebugText");
+        textObj.transform.SetParent(canvasObj.transform, false);
+        
+        Text txt = textObj.AddComponent<Text>();
+        txt.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        txt.fontSize = 24;
+        txt.alignment = TextAnchor.MiddleCenter;
+        txt.horizontalOverflow = HorizontalWrapMode.Wrap;
+        txt.verticalOverflow = VerticalWrapMode.Truncate;
+        txt.rectTransform.sizeDelta = new Vector2(800, 600);
+        txt.color = Color.green; // Green text for visibility
+        
+        // Add minimal background for contrast
+        GameObject bgObj = new GameObject("Background");
+        bgObj.transform.SetParent(canvasObj.transform, false);
+        bgObj.transform.SetAsFirstSibling();
+        Image img = bgObj.AddComponent<Image>();
+        img.color = new Color(0, 0, 0, 0.5f);
+        img.rectTransform.sizeDelta = new Vector2(820, 620);
 
-    private bool _hasReceivedFrame = false;
-
-    void Update()
-    {
-        CheckCameraStatus();
+        statusText = txt;
+        Debug.Log("Created Head-Locked Debug UI");
     }
 
     public void InitializeCamera()
@@ -43,20 +104,16 @@ public class CameraAccessTest : MonoBehaviour
 
         if (devices.Length == 0)
         {
-            Log("No Camera devices found! Attempting Passthrough fallback...");
-            // InitializePassthrough(); // Fallback to be implemented if WebCamTexture fails
+            Log("ERROR: No Camera devices found!");
             return;
         }
 
-        Log($"Found {devices.Length} devices:");
+        Log($"Found {devices.Length} devices.");
         foreach (var device in devices)
         {
             Log($"- {device.name} (Front: {device.isFrontFacing})");
         }
 
-        // Try to find the RGB camera
-        // On Quest 3, it might not be explicitly named "RGB".
-        // functionality might be blocked.
         string camName = devices[0].name;
         Log($"Attempting to start: {camName}");
 
@@ -69,37 +126,41 @@ public class CameraAccessTest : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Log($"Error starting camera: {e.Message}");
+            Log($"EXCEPTION: {e.Message}");
         }
     }
 
-    // Check if camera is actually updating
-    void CheckCameraStatus()
+    private bool _hasReceivedFrame = false;
+
+    void Update()
     {
+        // No longer need LookAt since it is parented to camera
+
         if (!_hasReceivedFrame && _webCamTexture != null && _webCamTexture.isPlaying)
         {
             if (_webCamTexture.didUpdateThisFrame)
             {
                 _hasReceivedFrame = true;
-                Log($"First Camera frame received! Res: {_webCamTexture.width}x{_webCamTexture.height}");
+                Log($"SUCCESS: Frame received! Res: {_webCamTexture.width}x{_webCamTexture.height}");
+                
+                var renderer = GetComponent<Renderer>();
+                if (renderer != null)
+                {
+                    renderer.material.mainTexture = _webCamTexture;
+                    Log("Texture assigned to Renderer.");
+                }
             }
         }
     }
 
-    void OnGUI()
-    {
-        // Fallback debug if UI Text is not linked
-        if (statusText == null)
-        {
-            GUI.Label(new Rect(10, 10, 800, 1000), _logBuffer);
-        }
-    }
-
-    private string _logBuffer = "";
     void Log(string msg)
     {
         Debug.Log($"[CamTest] {msg}");
-        _logBuffer += msg + "\n";
+        _logBuffer = msg + "\n" + _logBuffer; // Prepends new messages at TOP
+        
+        if (_logBuffer.Length > 2000) 
+            _logBuffer = _logBuffer.Substring(0, 2000);
+
         if (statusText != null)
         {
             statusText.text = _logBuffer;

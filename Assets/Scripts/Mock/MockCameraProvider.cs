@@ -98,4 +98,27 @@ public class MockCameraProvider : MonoBehaviour, IFrameProvider
         tex.Apply();
         return tex;
     }
+
+    // New Interface Methods
+    public void SetResolution(int width, int height)
+    {
+        if (colorRT != null && (colorRT.width != width || colorRT.height != height))
+        {
+            colorRT.Release();
+            colorRT = new RenderTexture(width, height, 24);
+            colorRT.Create();
+            if (mockCamera != null) mockCamera.targetTexture = colorRT;
+            Debug.Log($"[MockProvider] Set Resolution: {width}x{height}");
+        }
+    }
+
+    public void SetFPS(int fps)
+    {
+         Debug.Log($"[MockProvider] Set FPS: {fps}");
+    }
+
+    public void SetFlashlight(bool enabled)
+    {
+         Debug.Log($"[MockProvider] Set Flashlight: {enabled}");
+    }
 }

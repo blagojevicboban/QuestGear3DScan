@@ -5,10 +5,28 @@ using UnityEngine;
 namespace QuestGear3D.Scan.Data
 {
     [Serializable]
+    public enum ScanMode
+    {
+        Object,
+        Space
+    }
+
+    [Serializable]
     public class ScanData
     {
+        public string scanId;
+        public string scanMode; // Store as string for JSON readability
+        public ScanSettings settings;
         public PinholeCameraIntrinsic intrinsic;
         public List<ScanFrameMetadata> frames = new List<ScanFrameMetadata>();
+    }
+
+    [Serializable]
+    public class ScanSettings
+    {
+        public string resolution;
+        public int targetFPS;
+        public bool useFlashlight;
     }
 
     [Serializable]

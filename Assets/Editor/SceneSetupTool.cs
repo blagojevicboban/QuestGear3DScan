@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using QuestGear3D.Scan.Core;
 using QuestGear3D.Scan.Data;
 using QuestGear3D.Scan.Integration;
+using System.Linq;
 
 public class SceneSetupTool : EditorWindow
 {
@@ -46,7 +47,12 @@ public class SceneSetupTool : EditorWindow
         // 4. Create UI (Canvas)
         GameObject canvasObj = new GameObject("[UI_Canvas]");
         var canvas = canvasObj.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.renderMode = RenderMode.WorldSpace;
+        RectTransform canvasRT = canvasObj.GetComponent<RectTransform>();
+        canvasRT.sizeDelta = new Vector2(1280, 720); // Explicit HD resolution
+        canvasRT.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f); // ~2 meters wide
+        canvasRT.localPosition = new Vector3(0, 0, 1.5f); // 1.5m in front
+        
         canvasObj.AddComponent<CanvasScaler>();
         canvasObj.AddComponent<GraphicRaycaster>();
 
@@ -72,7 +78,9 @@ public class SceneSetupTool : EditorWindow
         GameObject textObj = new GameObject("StatusText");
         textObj.transform.SetParent(panelObj.transform, false);
         var statusText = textObj.AddComponent<Text>();
-        statusText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        Font font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        if (font == null) font = Resources.FindObjectsOfTypeAll<Font>().FirstOrDefault(f => f.name == "Arial");
+        statusText.font = font;
         statusText.text = "Ready to Scan";
         statusText.alignment = TextAnchor.MiddleCenter;
         statusText.color = Color.white;
@@ -118,7 +126,8 @@ public class SceneSetupTool : EditorWindow
         textObj.transform.SetParent(buttonObj.transform, false);
         var txt = textObj.AddComponent<Text>();
         txt.text = text;
-        txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        txt.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        if (txt.font == null) txt.font = Resources.FindObjectsOfTypeAll<Font>().FirstOrDefault(f => f.name == "Arial");
         txt.color = Color.black;
         txt.alignment = TextAnchor.MiddleCenter;
         
