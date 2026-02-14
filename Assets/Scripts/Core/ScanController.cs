@@ -7,9 +7,8 @@ namespace QuestGear3D.Scan.Core
     public class ScanController : MonoBehaviour
     {
         [Header("Scan Configuration")]
-        // public ScanMode currentScanMode = ScanMode.Object; 
-        // Keeping as field for Inspector, but maybe add property if needed
-        public ScanMode currentScanMode = ScanMode.Object; 
+        [field: SerializeField] // Show property in inspector
+        public ScanMode CurrentScanMode { get; private set; } = ScanMode.Object;
 
         public Vector2Int captureResolution = new Vector2Int(1280, 720); // Default to verified HD
         [Range(1, 60)] public int targetFPS = 30;
@@ -23,6 +22,9 @@ namespace QuestGear3D.Scan.Core
         // For simplicity with Inspector, we use MonoBehaviour then cast.
         public Component frameProviderObject; 
         private IFrameProvider _frameProvider;
+        
+        // Scene API Reference
+        public OVRSceneManager sceneManager;
 
 
         // Corrected Properties to match existing API (Capitalized)
@@ -59,6 +61,11 @@ namespace QuestGear3D.Scan.Core
             {
                 dataManager = FindObjectOfType<ScanDataManager>();
             }
+
+            if (sceneManager == null)
+            {
+                sceneManager = FindObjectOfType<OVRSceneManager>();
+            }
         }
 
         void Start()
@@ -68,6 +75,16 @@ namespace QuestGear3D.Scan.Core
                  _frameProvider.Initialize();
              }
              _captureInterval = 1f / targetFPS;
+             
+             // Ensure legacy field matches property if set in inspector
+             // currentScanMode field was removed to use Property directly
+        }
+
+        public void SetScanMode(ScanMode mode)
+        {
+            if (IsScanning) return; // Cannot change while scanning
+            CurrentScanMode = mode;
+            Debug.Log($"[ScanController] Mode set to: {CurrentScanMode}");
         }
 
         public void StartScan()
@@ -99,20 +116,78 @@ namespace QuestGear3D.Scan.Core
                     targetFPS = targetFPS,
                     useFlashlight = useFlashlight
                 };
-                dataManager.StartNewScan(currentScanMode, settings);
-            }
-
-            // Start Camera Stream
-            if (_frameProvider != null)
-            {
-                _frameProvider.SetResolution(captureResolution.x, captureResolution.y);
-                _frameProvider.SetFPS(targetFPS);
-                _frameProvider.StartStream();
+                dataManager.StartNewScan(CurrentScanMode, settings);
             }
 
             IsScanning = true;
             _lastCaptureTime = Time.time;
-            Debug.Log($"[ScanController] Scan STARTED (Mode: {currentScanMode})");
+            Debug.Log($"[ScanController] Scan STARTED (Mode: {CurrentScanMode})");
+
+            // Mode Logic
+            if (CurrentScanMode == ScanMode.Space)
+            {
+                // Space Mode: Trigger Scene Capture (Force new scan)
+                if (sceneManager != null)
+                {
+                    Debug.Log("[Scan] Requesting Scene Capture... (Forcing Room Setup)");
+                    sceneManager.RequestSceneCapture();
+                }
+                else
+                {
+                    Debug.LogError("[Scan] OVRSceneManager missing for Space Mode!");
+                    StopScan(); // Abort
+                }
+            }
+            else
+            {
+                // Object Mode: Start Continuous Stream
+                if (_frameProvider != null)
+                {
+                    _frameProvider.SetResolution(captureResolution.x, captureResolution.y);
+                    _frameProvider.SetFPS(targetFPS);
+                    _frameProvider.StartStream();
+                }
+            }
+        }
+
+        void OnEnable()
+        {
+            if (sceneManager != null)
+            {
+                sceneManager.SceneModelLoadedSuccessfully += OnSceneModelLoaded;
+                sceneManager.NoSceneModelToLoad += OnNoSceneModelToLoad;
+                sceneManager.NewSceneModelAvailable += OnNewSceneModelAvailable;
+            }
+        }
+
+        void OnDisable()
+        {
+            if (sceneManager != null)
+            {
+                sceneManager.SceneModelLoadedSuccessfully -= OnSceneModelLoaded;
+                sceneManager.NoSceneModelToLoad -= OnNoSceneModelToLoad;
+                sceneManager.NewSceneModelAvailable -= OnNewSceneModelAvailable;
+            }
+        }
+
+        private void OnSceneModelLoaded()
+        {
+            Debug.Log("[ScanController] Scene Model Loaded Successfully!");
+        }
+
+        private void OnNoSceneModelToLoad()
+        {
+            if (IsScanning && CurrentScanMode == ScanMode.Space)
+            {
+                Debug.LogWarning("[ScanController] No Scene Model found. Requesting Room Setup...");
+                sceneManager.RequestSceneCapture();
+            }
+        }
+
+        private void OnNewSceneModelAvailable()
+        {
+             Debug.Log("[ScanController] New Scene Model Available. Loading...");
+             sceneManager.LoadSceneModel();
         }
 
         public void StopScan()
@@ -121,28 +196,57 @@ namespace QuestGear3D.Scan.Core
             
             IsScanning = false;
             
-            if (_frameProvider != null) _frameProvider.StopStream();
+            if (CurrentScanMode == ScanMode.Object)
+            {
+                if (_frameProvider != null) _frameProvider.StopStream();
+            }
+            else 
+            {
+                // Space Mode: Capture logical completion
+                // Ideally we hook into OVRSceneManager events to know when capture is done
+                // For now, we manually "Stop" to save data and finish session
+                CaptureRoomData();
+            }
+
             if (dataManager != null) dataManager.StopScan();
             
             Debug.Log("[ScanController] Scan STOPPED");
         }
+        
+        private void CaptureRoomData()
+        {
+            // Try to find the loaded room
+            var rooms = FindObjectsOfType<OVRSceneRoom>();
+            if (rooms.Length > 0 && dataManager != null)
+            {
+                dataManager.CaptureSceneModel(rooms[0]);
+            }
+            else
+            {
+                Debug.LogWarning("[Scan] No OVRSceneRoom found to save.");
+            }
+        }
 
         void Update()
         {
-            if (!IsScanning || _frameProvider == null || dataManager == null) return;
+            if (!IsScanning || dataManager == null) return;
 
-            // Simple FPS throttle
-            if (Time.time - _lastCaptureTime >= _captureInterval)
+            // Only Object mode needs continuous frame capture here
+            if (CurrentScanMode == ScanMode.Object)
             {
-                if (_frameProvider.HasNewFrame())
+                if (_frameProvider == null) return;
+
+                // Simple FPS throttle
+                if (Time.time - _lastCaptureTime >= _captureInterval)
                 {
-                    var frame = _frameProvider.GetLatestFrame();
-                    // We only save if we have a valid color texture
-                    if (frame.ColorTexture != null)
+                    if (_frameProvider.HasNewFrame())
                     {
-                        // TODO: Add ScanFrameMetadata if needed
-                        dataManager.CaptureFrame(frame.ColorTexture, frame.DepthTexture, frame.CameraPose);
-                        _lastCaptureTime = Time.time;
+                        var frame = _frameProvider.GetLatestFrame();
+                        if (frame.ColorTexture != null)
+                        {
+                            dataManager.CaptureFrame(frame.ColorTexture, frame.DepthTexture, frame.CameraPose);
+                            _lastCaptureTime = Time.time;
+                        }
                     }
                 }
             }

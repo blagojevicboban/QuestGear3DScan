@@ -29,7 +29,7 @@ public class AutomatedWorkflowTest : MonoBehaviour
         
         // Ensure immediate start for testing
         scanController.startDelay = 0f;
-        scanController.currentScanMode = ScanMode.Object;
+        scanController.SetScanMode(ScanMode.Object);
         
         // 2. Start Scan
         Debug.Log("[TEST] Starting Scan (Object Mode)...");

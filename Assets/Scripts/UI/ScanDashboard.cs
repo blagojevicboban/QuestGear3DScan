@@ -62,7 +62,7 @@ public class ScanDashboard : MonoBehaviour
     {
         if (scanController) 
         {
-            scanController.currentScanMode = mode;
+            scanController.SetScanMode(mode); // Use method instead of property set
             // Auto-adjust defaults based on mode
             if (mode == ScanMode.Object) scanController.targetFPS = 30;
             if (mode == ScanMode.Space) scanController.targetFPS = 5;
@@ -78,10 +78,9 @@ public class ScanDashboard : MonoBehaviour
         if (!scanController) return;
         // Visual feedback for selected mode (e.g. disable button or change color)
         // For now just relying on Unity Button transition, but could colorize
-        if (objectModeButton) objectModeButton.interactable = scanController.currentScanMode != ScanMode.Object;
-        if (spaceModeButton) spaceModeButton.interactable = scanController.currentScanMode != ScanMode.Space;
+        if (objectModeButton) objectModeButton.interactable = scanController.CurrentScanMode != ScanMode.Object;
+        if (spaceModeButton) spaceModeButton.interactable = scanController.CurrentScanMode != ScanMode.Space;
     }
-
     void ToggleAdvancedPanel()
     {
         if (advancedPanel) advancedPanel.SetActive(!advancedPanel.activeSelf);
@@ -90,8 +89,6 @@ public class ScanDashboard : MonoBehaviour
     void OnResolutionChanged(int index)
     {
         // simplistic 0=High, 1=Med, 2=Low mapping
-        // Logic to set scanController.captureResolution
-        // For now placeholder
     }
 
     void OnFPSChanged(float value)
@@ -158,7 +155,7 @@ public class ScanDashboard : MonoBehaviour
             {
                 int bufferCount = 0;
                 if (scanController.dataManager != null) 
-                    bufferCount = scanController.dataManager.PendingSaveCount;
+                    bufferCount = scanController.dataManager.PendingSaveCount; // PendingSaveCount property check if it exists
                     
                 statusText.text = $"Scanning... (Buffer: {bufferCount})";
             }
@@ -169,7 +166,7 @@ public class ScanDashboard : MonoBehaviour
                 {
                     serverInfo = $"\nServer: {fileServer.ServerAddress}";
                 }
-                statusText.text = $"Ready (Mode: {scanController.currentScanMode}){serverInfo}";
+                statusText.text = $"Ready (Mode: {scanController.CurrentScanMode}){serverInfo}";
             }
         }
     }

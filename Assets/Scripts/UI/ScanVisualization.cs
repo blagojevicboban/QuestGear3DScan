@@ -30,7 +30,7 @@ namespace QuestGear3D.Scan.UI
         {
             if (scanController == null) return;
 
-            bool isSpaceMode = scanController.currentScanMode == ScanMode.Space;
+            bool isSpaceMode = scanController.CurrentScanMode == ScanMode.Space;
             bool isScanning = scanController.IsScanning;
 
             // Space Mode: Enable Scene Manager visualization (Walls/Room)

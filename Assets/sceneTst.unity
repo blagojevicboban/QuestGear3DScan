@@ -1663,13 +1663,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4aa20d8914d5fae4cad3945dc1ee4a5c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::QuestGear3D.Scan.Core.ScanController
-  currentScanMode: 0
+  <CurrentScanMode>k__BackingField: 0
   captureResolution: {x: 1920, y: 1080}
   targetFPS: 30
   useFlashlight: 0
   startDelay: 0
   dataManager: {fileID: 1275093901}
   frameProviderObject: {fileID: 1750028087}
+  sceneManager: {fileID: 0}
 --- !u!114 &1275093901
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2451,13 +2452,13 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1244577308}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f2253d75e3ddc644b8153409c62dd74e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Oculus.VR::OVRSceneManager
-  PlanePrefab: {fileID: 0}
-  VolumePrefab: {fileID: 0}
+  PlanePrefab: {fileID: 104917009244931467, guid: 971a9011cc168be4fa30749570712d35, type: 3}
+  VolumePrefab: {fileID: 5149451991707404333, guid: 7ac2b5762470d5343a6ad74c1ad39fd9, type: 3}
   PrefabOverrides: []
   ActiveRoomsOnly: 1
   VerboseLogging: 0
@@ -2475,13 +2476,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4aa20d8914d5fae4cad3945dc1ee4a5c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::QuestGear3D.Scan.Core.ScanController
-  currentScanMode: 0
+  <CurrentScanMode>k__BackingField: 0
   captureResolution: {x: 1920, y: 1080}
   targetFPS: 30
   useFlashlight: 0
   startDelay: 0
   dataManager: {fileID: 0}
   frameProviderObject: {fileID: 0}
+  sceneManager: {fileID: 0}
 --- !u!114 &2062571143
 MonoBehaviour:
   m_ObjectHideFlags: 0

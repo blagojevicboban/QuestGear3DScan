@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro; // Added for TextMeshPro
 using QuestGear3D.Scan.Core;
+using QuestGear3D.Scan.Data;
 
 namespace QuestGear3D.Scan.UI
 {
@@ -63,13 +64,31 @@ namespace QuestGear3D.Scan.UI
                 }
             }
             
-            // Controller Input Check (A / Trigger / X / Any Trigger)
+            // Controller Input Check (X / B for Mode Switch)
+            // Log raw input for debug
+            if (OVRInput.GetDown(OVRInput.Button.Three)) Debug.Log("[ScanUI] Button Three (X) Pressed");
+            if (OVRInput.GetDown(OVRInput.Button.One)) Debug.Log("[ScanUI] Button One (A) Pressed");
+
+            if (!scanController.IsScanning && (OVRInput.GetDown(OVRInput.Button.Three) || OVRInput.GetDown(OVRInput.Button.Two) || Input.GetMouseButtonDown(1)))
+            {
+                Debug.Log("[ScanUI] Toggle Mode Input Detected");
+                // Toggle Mode
+                ScanMode newMode = (scanController.CurrentScanMode == ScanMode.Object) ? ScanMode.Space : ScanMode.Object;
+                scanController.SetScanMode(newMode);
+                
+                // Feedback
+                OVRInput.SetControllerVibration(0.5f, 0.5f, OVRInput.Controller.RTouch);
+                Invoke("StopVibration", 0.1f);
+            }
+
+            // Controller Input Check (A / Trigger / Space / Click)
             if (OVRInput.GetDown(OVRInput.Button.One) || 
                 OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger) || 
                 OVRInput.GetDown(OVRInput.Button.SecondaryIndexTrigger) ||
                 Input.GetKeyDown(KeyCode.Space) ||
                 Input.GetMouseButtonDown(0))
             {
+                Debug.Log($"[ScanUI] Main Action Input Detected. IsScanning: {scanController.IsScanning}");
                 // HAPTIC FEEDBACK ON CLICK
                 OVRInput.SetControllerVibration(0.5f, 0.5f, OVRInput.Controller.RTouch);
                 OVRInput.SetControllerVibration(0.5f, 0.5f, OVRInput.Controller.LTouch);
@@ -78,9 +97,11 @@ namespace QuestGear3D.Scan.UI
                 // VISUAL FLASH (On Camera Background)
                 if (Camera.main != null)
                 {
-                    Camera.main.backgroundColor = _isScanning ? Color.black : Color.green;
+                    // Use Transparent for Passthrough Underlay compatibility
                     Camera.main.clearFlags = CameraClearFlags.SolidColor; 
-                    // Note: This overrides passthrough momentarily if successful, which is good for debug
+                    // Flash semi-transparent green briefly, then return to clear (black transparent)
+                    Camera.main.backgroundColor = new Color(0, 1, 0, 0.3f); 
+                    Invoke("ResetCameraBackground", 0.1f);
                 }
 
                 OnMainActionClicked();
@@ -89,9 +110,11 @@ namespace QuestGear3D.Scan.UI
             // Update Status based on Controller state
             if (scanController != null)
             {
+                string modeText = $"MODE: {scanController.CurrentScanMode.ToString().ToUpper()}";
+                
                 if (scanController.IsScanning)
                 {
-                    UpdateStatus("Scanning... (Active)\nPress 'A' or Trigger to Stop");
+                    UpdateStatus($"{modeText}\nScanning... (Active)\nPress 'A' to Stop");
                     UpdateButtonText("STOP SCAN");
                     _isScanning = true;
                 }
@@ -99,16 +122,30 @@ namespace QuestGear3D.Scan.UI
                 {
                     if (_isScanning) // Just stopped
                     {
-                        UpdateStatus("Saving Data...");
+                        StartCoroutine(ShowSavedStatus());
                         _isScanning = false;
                     }
-                    else
+                    else if (!_isShowingSavedMessage) // Only show Ready if not showing saved message
                     {
-                         UpdateStatus("Ready to Scan\nPress 'A' or Trigger to Start");
+                         UpdateStatus($"{modeText}\nReady to Scan\nPress 'A' to Start\nPress 'X' to Switch Mode");
                     }
                     UpdateButtonText("START SCAN");
                 }
             }
+        }
+
+        private bool _isShowingSavedMessage = false;
+        System.Collections.IEnumerator ShowSavedStatus()
+        {
+            _isShowingSavedMessage = true;
+            UpdateStatus("<color=green>SCAN SAVED!</color>\nCheck: Android/data/.../files/Scans/");
+            // Vibrate to confirm save
+            OVRInput.SetControllerVibration(1, 1, OVRInput.Controller.RTouch);
+            yield return new WaitForSeconds(0.5f);
+            OVRInput.SetControllerVibration(0, 0, OVRInput.Controller.RTouch);
+            
+            yield return new WaitForSeconds(3.0f);
+            _isShowingSavedMessage = false;
         }
 
         public void OnMainActionClicked()
@@ -167,6 +204,15 @@ namespace QuestGear3D.Scan.UI
                  mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.5f);
                  mainCanvas.transform.localRotation = Quaternion.identity;
              }
+        }
+
+        void ResetCameraBackground()
+        {
+            if (Camera.main != null)
+            {
+                Camera.main.clearFlags = CameraClearFlags.SolidColor;
+                Camera.main.backgroundColor = new Color(0, 0, 0, 0f); // Fully Transparent Black
+            }
         }
     }
 }
