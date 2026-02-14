@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using QuestGear3D.Scan.Data;
 
 namespace QuestGear3D.Scan.Core
@@ -6,34 +7,57 @@ namespace QuestGear3D.Scan.Core
     public class ScanController : MonoBehaviour
     {
         [Header("Scan Configuration")]
-        public ScanMode currentScanMode = ScanMode.Object;
-        public Vector2Int captureResolution = new Vector2Int(1920, 1080);
+        // public ScanMode currentScanMode = ScanMode.Object; 
+        // Keeping as field for Inspector, but maybe add property if needed
+        public ScanMode currentScanMode = ScanMode.Object; 
+
+        public Vector2Int captureResolution = new Vector2Int(1280, 720); // Default to verified HD
         [Range(1, 60)] public int targetFPS = 30;
         public bool useFlashlight = false;
         [Range(0f, 10f)] public float startDelay = 0f;
 
         [Header("Dependencies")]
         public ScanDataManager dataManager;
-        // Interface reference - assigned via dragging a MonoBehaviour that implements it
-        // Unity doesn't serialize interfaces well, so we use a Component reference and validate on Awake
-        public MonoBehaviour frameProviderObject; 
+        
+        // Use direct reference to concrete component or interface wrapper if possible
+        // For simplicity with Inspector, we use MonoBehaviour then cast.
+        public Component frameProviderObject; 
         private IFrameProvider _frameProvider;
 
-        [Header("Internal")]
-        // public float captureFPS = 5f; // REPLACED by targetFPS
+
+        // Corrected Properties to match existing API (Capitalized)
+        [field: Header("Status")]
+        public bool IsScanning { get; private set; }
+        public float CurrentCountdown { get; private set; }
+
+        private float _lastCaptureTime;
         private float _captureInterval;
-        private float _timer;
-        private bool _isScanning = false;
 
         void Awake()
         {
-            if (frameProviderObject != null && frameProviderObject is IFrameProvider)
+            if (frameProviderObject != null)
             {
-                _frameProvider = (IFrameProvider)frameProviderObject;
+                _frameProvider = frameProviderObject as IFrameProvider;
+                if (_frameProvider == null)
+                {
+                    Debug.LogError("[ScanController] Frame Provider Object assigned but does not implement IFrameProvider!");
+                }
             }
             else
             {
-                Debug.LogError("[ScanController] Frame Provider Object does not implement IFrameProvider!");
+                // Auto-find if missing
+                _frameProvider = GetComponentInChildren<IFrameProvider>();
+                if (_frameProvider == null) _frameProvider = FindObjectOfType<QuestCameraProvider>();
+                
+                if (_frameProvider != null)
+                {
+                    Debug.Log("[ScanController] Auto-found Frame Provider.");
+                }
+            }
+            
+            if (dataManager == null)
+            {
+                dataManager = FindObjectOfType<ScanDataManager>();
             }
         }
 
@@ -43,24 +67,18 @@ namespace QuestGear3D.Scan.Core
              {
                  _frameProvider.Initialize();
              }
-             UpdateCaptureInterval();
-        }
-
-        private void UpdateCaptureInterval()
-        {
              _captureInterval = 1f / targetFPS;
         }
 
-        public float CurrentCountdown { get; private set; }
-
         public void StartScan()
         {
-            if (_isScanning) return;
+            if (IsScanning) return;
             StartCoroutine(StartScanRoutine());
         }
 
-        private System.Collections.IEnumerator StartScanRoutine()
+        private IEnumerator StartScanRoutine()
         {
+            // Apply delay
             if (startDelay > 0)
             {
                 CurrentCountdown = startDelay;
@@ -72,64 +90,62 @@ namespace QuestGear3D.Scan.Core
                 CurrentCountdown = 0f;
             }
 
-            // Apply Settings
+            // Init session
+            if (dataManager != null)
+            {
+                ScanSettings settings = new ScanSettings
+                {
+                    resolution = $"{captureResolution.x}x{captureResolution.y}",
+                    targetFPS = targetFPS,
+                    useFlashlight = useFlashlight
+                };
+                dataManager.StartNewScan(currentScanMode, settings);
+            }
+
+            // Start Camera Stream
             if (_frameProvider != null)
             {
                 _frameProvider.SetResolution(captureResolution.x, captureResolution.y);
                 _frameProvider.SetFPS(targetFPS);
-                _frameProvider.SetFlashlight(useFlashlight);
                 _frameProvider.StartStream();
             }
 
-            UpdateCaptureInterval();
-
-            if (dataManager != null)
-            {
-                 ScanSettings settings = new ScanSettings
-                 {
-                     resolution = $"{captureResolution.x}x{captureResolution.y}",
-                     targetFPS = targetFPS,
-                     useFlashlight = useFlashlight
-                 };
-                 dataManager.StartNewScan(currentScanMode, settings);
-            }
-            
-            _isScanning = true;
-            _timer = 0f;
-            Debug.Log($"[ScanController] Scan Started (Mode: {currentScanMode})");
+            IsScanning = true;
+            _lastCaptureTime = Time.time;
+            Debug.Log($"[ScanController] Scan STARTED (Mode: {currentScanMode})");
         }
 
         public void StopScan()
         {
-            if (!_isScanning) return;
+            if (!IsScanning) return;
             
-            _isScanning = false;
+            IsScanning = false;
             
             if (_frameProvider != null) _frameProvider.StopStream();
             if (dataManager != null) dataManager.StopScan();
             
-            Debug.Log("[ScanController] Scan Stopped");
+            Debug.Log("[ScanController] Scan STOPPED");
         }
 
         void Update()
         {
-            if (!_isScanning || _frameProvider == null || dataManager == null) return;
+            if (!IsScanning || _frameProvider == null || dataManager == null) return;
 
-            _timer += Time.deltaTime;
-            if (_timer >= _captureInterval)
+            // Simple FPS throttle
+            if (Time.time - _lastCaptureTime >= _captureInterval)
             {
                 if (_frameProvider.HasNewFrame())
                 {
-                    FrameData frame = _frameProvider.GetLatestFrame();
+                    var frame = _frameProvider.GetLatestFrame();
+                    // We only save if we have a valid color texture
                     if (frame.ColorTexture != null)
                     {
+                        // TODO: Add ScanFrameMetadata if needed
                         dataManager.CaptureFrame(frame.ColorTexture, frame.DepthTexture, frame.CameraPose);
-                        _timer = 0f;
+                        _lastCaptureTime = Time.time;
                     }
                 }
             }
         }
-        
-        public bool IsScanning => _isScanning;
     }
 }

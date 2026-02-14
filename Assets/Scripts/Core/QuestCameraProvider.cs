@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.Android; // Required for Permission
+using System.Collections;
 using QuestGear3D.Scan.Core;
 
 public class QuestCameraProvider : MonoBehaviour, IFrameProvider
@@ -16,12 +18,12 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
     private Texture2D _latestDepthTexture;
     private bool _isStreaming = false;
     private bool _hasNewFrame = false;
-
-    // TODO: Implement OVRDepth access
-    // private OVRDepth _ovrDepth;
+    private bool _isInitialized = false;
 
     public void Initialize()
     {
+        if (_isInitialized) return;
+
         // Auto-find CenterEyeAnchor if not assigned
         if (centerEyeAnchor == null)
         {
@@ -37,38 +39,74 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             }
         }
 
-        // Initialize WebCamTexture
+        StartCoroutine(AskAndCheckPermission());
+    }
+
+    IEnumerator AskAndCheckPermission()
+    {
+        if (Permission.HasUserAuthorizedPermission(Permission.Camera))
+        {
+            InitializeCameraDevice();
+            yield break;
+        }
+
+        Debug.Log("[QuestProvider] Requesting Camera Permission...");
+        Permission.RequestUserPermission(Permission.Camera);
+
+        float timeout = 60f;
+        while (timeout > 0)
+        {
+            if (Permission.HasUserAuthorizedPermission(Permission.Camera))
+            {
+                Debug.Log("[QuestProvider] Permission Granted!");
+                InitializeCameraDevice();
+                yield break;
+            }
+            yield return new WaitForSeconds(0.5f);
+            timeout -= 0.5f;
+        }
+
+        Debug.LogError("[QuestProvider] Camera Permission Timed Out or Denied.");
+    }
+
+    private void InitializeCameraDevice()
+    {
         WebCamDevice[] devices = WebCamTexture.devices;
         if (devices.Length > 0)
         {
-            string camName = devices[0].name; // Use first available
+            string camName = devices[0].name;
             _webCamTexture = new WebCamTexture(camName, requestedWidth, requestedHeight, requestedFPS);
             
-            // Create reusable texture buffer for output
-            // Init with black, will resize on first frame
             _latestColorTexture = new Texture2D(16, 16, TextureFormat.RGB24, false);
-            
-            // Placeholder Depth (Gray)
-            _latestDepthTexture = new Texture2D(16, 16, TextureFormat.R16, false); // 16-bit
+            _latestDepthTexture = new Texture2D(16, 16, TextureFormat.R16, false);
             
             Debug.Log($"[QuestProvider] Initialized with camera: {camName}");
+            _isInitialized = true;
         }
         else
         {
-            Debug.LogWarning("[QuestProvider] No Camera devices found! Using synthetic fallback for Simulator/Editor.");
+            Debug.LogWarning("[QuestProvider] No Camera devices found! Using synthetic fallback.");
             _latestColorTexture = new Texture2D(requestedWidth, requestedHeight, TextureFormat.RGB24, false);
-            // Fill with debug color
-            Color[] pixels = new Color[requestedWidth * requestedHeight];
-            for(int i=0; i<pixels.Length; i++) pixels[i] = Color.magenta;
-            _latestColorTexture.SetPixels(pixels);
+             // Fill magenta
+            var cols = _latestColorTexture.GetPixels();
+            for(int i=0; i<cols.Length; ++i) cols[i] = Color.magenta;
+            _latestColorTexture.SetPixels(cols);
             _latestColorTexture.Apply();
-            
+
             _latestDepthTexture = new Texture2D(requestedWidth, requestedHeight, TextureFormat.R16, false);
+            _isInitialized = true;
         }
     }
 
     public void StartStream()
     {
+        if (!_isInitialized) 
+        {
+            Debug.LogWarning("[QuestProvider] Cannot start stream: Not Initialized.");
+            Initialize(); // Try initializing
+            return;
+        }
+
         if (_webCamTexture != null)
         {
             _webCamTexture.Play();
@@ -94,9 +132,10 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
 
     public FrameData GetLatestFrame()
     {
-        // If webcam is active, update textures
         if (_webCamTexture != null && _webCamTexture.isPlaying)
         {
+            // Only update texture on GPU if size changed or just to refresh
+            // Ideally we blit or copy. For now setPixels is slow but functional.
             if (_latestColorTexture.width != _webCamTexture.width || _latestColorTexture.height != _webCamTexture.height)
             {
                 _latestColorTexture.Reinitialize(_webCamTexture.width, _webCamTexture.height);
@@ -104,8 +143,9 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             }
             _latestColorTexture.SetPixels32(_webCamTexture.GetPixels32());
             _latestColorTexture.Apply();
+            
+            // TODO: Fill _latestDepthTexture with real data if available
         }
-        // If no webcam (Simulator fallback), keep existing texture (magenta)
 
         return new FrameData
         {
@@ -114,6 +154,12 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             CameraPose = centerEyeAnchor != null ? centerEyeAnchor.localToWorldMatrix : Matrix4x4.identity,
             Timestamp = Time.realtimeSinceStartupAsDouble
         };
+    }
+
+    // Helper for UI to preview the raw feed
+    public Texture GetPreviewTexture()
+    {
+        return _webCamTexture != null ? _webCamTexture : _latestColorTexture;
     }
 
     void Update()
@@ -141,14 +187,13 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
 
     public void SetFlashlight(bool enabled)
     {
-        // TODO: Implement Android Torch API
         Debug.Log($"[QuestCameraProvider] Flashlight {(enabled ? "ON" : "OFF")} (Not implemented)");
     }
 
     private void RestartStream()
     {
         StopStream();
-        Initialize(); 
+        InitializeCameraDevice(); 
         StartStream();
     }
 }
