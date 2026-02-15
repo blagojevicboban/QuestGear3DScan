@@ -122,6 +122,12 @@ namespace QuestGear3D.Scan.Core
                 if (_frameProvider != null)
                 {
                     dataManager.SetIntrinsics(_frameProvider.GetIntrinsics());
+
+                    // LOG DIAGNOSTICS FOR CAMERA
+                    if (_frameProvider is QuestCameraProvider qcp)
+                    {
+                        qcp.LogDiagnostics(dataManager.CurrentScanFolder);
+                    }
                 }
             }
 

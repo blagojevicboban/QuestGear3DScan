@@ -32,7 +32,7 @@ namespace QuestGear3D.Scan.Data
     public class ScanDataManager : MonoBehaviour
     {
         public string scanRootDirectory = "Scans";
-        private string _currentScanFolder;
+        public string CurrentScanFolder { get; private set; }
         private ScanData _currentScanData;
         private SceneData _currentSceneData;
         private bool _isScanning = false;
@@ -51,13 +51,13 @@ namespace QuestGear3D.Scan.Data
         {
             string scanName = $"Scan_{System.DateTime.Now:yyyyMMdd_HHmmss}";
             string basePath = Application.persistentDataPath;
-            _currentScanFolder = Path.Combine(basePath, scanRootDirectory, scanName);
+            CurrentScanFolder = Path.Combine(basePath, scanRootDirectory, scanName);
             
-            if (!Directory.Exists(_currentScanFolder))
+            if (!Directory.Exists(CurrentScanFolder))
             {
-                Directory.CreateDirectory(_currentScanFolder);
-                Directory.CreateDirectory(Path.Combine(_currentScanFolder, "color"));
-                Directory.CreateDirectory(Path.Combine(_currentScanFolder, "depth"));
+                Directory.CreateDirectory(CurrentScanFolder);
+                Directory.CreateDirectory(Path.Combine(CurrentScanFolder, "color"));
+                Directory.CreateDirectory(Path.Combine(CurrentScanFolder, "depth"));
             }
 
             // Init Object Scan Data
@@ -77,7 +77,7 @@ namespace QuestGear3D.Scan.Data
             _isProcessingQueue = true;
             Task.Run(ProcessSaveQueue); 
             
-            Debug.Log($"Started scan: {_currentScanFolder} (Mode: {mode})");
+            Debug.Log($"Started scan: {CurrentScanFolder} (Mode: {mode})");
         }
 
         public void SetIntrinsics(PinholeCameraIntrinsic intrinsics)
@@ -108,8 +108,8 @@ namespace QuestGear3D.Scan.Data
             byte[] colorBytes = colorParams.EncodeToJPG(90);
             byte[] depthBytes = depthParams.EncodeToPNG(); 
             
-            _saveQueue.Enqueue(new SaveRequest { FilePath = Path.Combine(_currentScanFolder, colorFileName), Data = colorBytes });
-            _saveQueue.Enqueue(new SaveRequest { FilePath = Path.Combine(_currentScanFolder, depthFileName), Data = depthBytes });
+            _saveQueue.Enqueue(new SaveRequest { FilePath = Path.Combine(CurrentScanFolder, colorFileName), Data = colorBytes });
+            _saveQueue.Enqueue(new SaveRequest { FilePath = Path.Combine(CurrentScanFolder, depthFileName), Data = depthBytes });
 
             ScanFrameMetadata metadata = new ScanFrameMetadata
             {
@@ -197,13 +197,13 @@ namespace QuestGear3D.Scan.Data
         {
             // Save Frame Data
             string json = JsonUtility.ToJson(_currentScanData, true);
-            string path = Path.Combine(_currentScanFolder, "scan_data.json");
+            string path = Path.Combine(CurrentScanFolder, "scan_data.json");
             File.WriteAllText(path, json);
 
             // Export NerfStudio format
             try 
             {
-               NerfStudioExporter.Export(_currentScanFolder, _currentScanData);
+               NerfStudioExporter.Export(CurrentScanFolder, _currentScanData);
                Debug.Log("Exported transforms.json for NerfStudio.");
             }
             catch(System.Exception e)
@@ -217,7 +217,7 @@ namespace QuestGear3D.Scan.Data
             if (_currentSceneData != null && _currentSceneData.objects.Count > 0)
             {
                 string json = JsonUtility.ToJson(_currentSceneData, true);
-                string path = Path.Combine(_currentScanFolder, "scene_data.json");
+                string path = Path.Combine(CurrentScanFolder, "scene_data.json");
                 File.WriteAllText(path, json);
             }
         }

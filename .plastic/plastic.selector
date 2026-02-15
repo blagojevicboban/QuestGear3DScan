@@ -1,0 +1,4 @@
+repository "QuestGear3DScan/QuestGear3DScan@6872454673499@cloud"
+  path "/"
+    br "/main"
+    co "/main"

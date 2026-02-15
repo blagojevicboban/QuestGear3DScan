@@ -36,10 +36,36 @@ namespace QuestGear3D.Scan.UI
                 mainActionButton.onClick.AddListener(OnMainActionClicked);
             }
 
+
+
+            // AUTO-FIND MISSING REFERENCES (Safer - Only check for OUR canvas)
+            // Do NOT use generic GetComponentInChildren<Canvas>() as it picks up garbage.
+            var existing = transform.Find("ScanUI_Fallback_Canvas");
+            if (existing != null) mainCanvas = existing.GetComponent<Canvas>();
+            
+            // If STILL null, CREATE NEW ONE
+            if (mainCanvas == null)
+            {
+                Debug.LogWarning("[ScanUI] No valid Canvas assigned! Creating Fallback UI...");
+                CreateFallbackUI();
+            }
+
+            if (statusText == null) statusText = GetComponentInChildren<TMP_Text>();
+            // If statusText is null, CreateFallbackUI will create it anyway
+
+            // Ensure EventSystem Exists for Interaction
+            if (FindObjectOfType<EventSystem>() == null)
+            {
+                GameObject es = new GameObject("EventSystem");
+                es.AddComponent<EventSystem>();
+                es.AddComponent<StandaloneInputModule>();
+            }
+
             SetupUI();
             
             // Set initial status
             UpdateStatus("System Initializing...");
+            Debug.Log($"[ScanUI] STARTED. Canvas Active: {(mainCanvas!=null)}");
 
             // HAPTIC FEEDBACK ON START (Confirm script runs)
             OVRInput.SetControllerVibration(1, 1, OVRInput.Controller.RTouch);
@@ -67,8 +93,8 @@ namespace QuestGear3D.Scan.UI
             
             // Controller Input Check (X / B for Mode Switch)
             // Log raw input for debug
-            if (OVRInput.GetDown(OVRInput.Button.Three)) Debug.Log("[ScanUI] Button Three (X) Pressed");
-            if (OVRInput.GetDown(OVRInput.Button.One)) Debug.Log("[ScanUI] Button One (A) Pressed");
+            if (OVRInput.GetDown(OVRInput.Button.Three)) Debug.Log("[ScanUI] Button Three (X) Pressed - Attempting Mode Toggle");
+            if (OVRInput.GetDown(OVRInput.Button.One)) Debug.Log("[ScanUI] Button One (A) Pressed - Attempting Action");
 
             if (!scanController.IsScanning && (OVRInput.GetDown(OVRInput.Button.Three) || OVRInput.GetDown(OVRInput.Button.Two) || Input.GetMouseButtonDown(1)))
             {
@@ -88,7 +114,7 @@ namespace QuestGear3D.Scan.UI
             if (OVRInput.GetDown(OVRInput.Button.One) || 
                 Input.GetKeyDown(KeyCode.Space))
             {
-                Debug.Log($"[ScanUI] Main Action Input Detected. IsScanning: {scanController.IsScanning}");
+                Debug.Log($"[ScanUI] Main Action Input Detected via {(OVRInput.GetDown(OVRInput.Button.One) ? "Button A" : "Space")}. IsScanning: {scanController.IsScanning}");
                 // HAPTIC FEEDBACK ON CLICK
                 OVRInput.SetControllerVibration(0.5f, 0.5f, OVRInput.Controller.RTouch);
                 OVRInput.SetControllerVibration(0.5f, 0.5f, OVRInput.Controller.LTouch);
@@ -210,6 +236,20 @@ namespace QuestGear3D.Scan.UI
                 // Note: overlayType property uses the OVROverlay.OverlayType enum in some SDK versions
                 layer.overlayType = OVROverlay.OverlayType.Underlay;
             }
+
+            // FORCE CAMERA TO RENDER UI LAYER
+            if (Camera.main != null)
+            {
+                // Ensure UI layer (Layer 5) is visible
+                Camera.main.cullingMask = Camera.main.cullingMask | (1 << 5);
+            }
+
+            // FORCE CAMERA CLEAR FOR PASSTHROUGH VISIBILITY
+            if (Camera.main != null)
+            {
+                Camera.main.clearFlags = CameraClearFlags.SolidColor;
+                Camera.main.backgroundColor = new Color(0, 0, 0, 0); // Transparent Black
+            }
         }
 
         public void ResetUIPosition()
@@ -224,6 +264,9 @@ namespace QuestGear3D.Scan.UI
             mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.6f); 
             mainCanvas.transform.localRotation = Quaternion.identity;
             mainCanvas.transform.localScale = Vector3.one * 0.001f;
+            
+            mainCanvas.gameObject.SetActive(true);
+            Debug.Log($"[ScanUI] ResetUIPosition - Pos: {mainCanvas.transform.position}, Scale: {mainCanvas.transform.localScale}, Active: {mainCanvas.gameObject.activeInHierarchy}");
         }
 
         void LateUpdate()
@@ -252,6 +295,86 @@ namespace QuestGear3D.Scan.UI
                 Camera.main.clearFlags = CameraClearFlags.SolidColor;
                 Camera.main.backgroundColor = new Color(0, 0, 0, 0f); // Fully Transparent Black
             }
+        }
+
+
+        private void CreateFallbackUI()
+        {
+            // Create a Canvas GameObject with a nicer name
+            GameObject canvasObj = new GameObject("ScanUI_Fallback_Canvas");
+            mainCanvas = canvasObj.AddComponent<Canvas>();
+            mainCanvas.renderMode = RenderMode.WorldSpace;
+            
+            // Add Necessary Components
+            canvasObj.AddComponent<CanvasScaler>();
+            canvasObj.AddComponent<GraphicRaycaster>();
+            
+            // Ensure OVRManager Exists for Input Updates
+            if (FindObjectOfType<OVRManager>() == null)
+            {
+                Debug.LogWarning("[ScanUI] OVRManager missing! Adding to scene for Input handling.");
+                GameObject ovrObj = new GameObject("OVRManager_AutoForInput");
+                ovrObj.AddComponent<OVRManager>();
+            }
+
+            // Setup Background Panel - Sleek Dark Panel
+            GameObject panelObj = new GameObject("BackgroundPanel");
+            panelObj.transform.SetParent(canvasObj.transform, false);
+            var panelImage = panelObj.AddComponent<Image>();
+            panelImage.color = new Color(0.2f, 0.2f, 0.2f, 0.6f); // Semi-transparent GRAY
+            RectTransform panelRT = panelObj.GetComponent<RectTransform>();
+            panelRT.anchorMin = Vector2.zero;
+            panelRT.anchorMax = Vector2.one;
+            panelRT.offsetMin = Vector2.zero;
+            panelRT.offsetMax = Vector2.zero;
+
+            // Header "QUESTGEAR 3D SCAN"
+            GameObject headerObj = new GameObject("HeaderText");
+            headerObj.transform.SetParent(panelObj.transform, false);
+            var headerText = headerObj.AddComponent<TextMeshProUGUI>();
+            headerText.text = "QUESTGEAR 3D SCAN";
+            headerText.color = new Color(0.0f, 0.8f, 1.0f); // Cyan
+            headerText.fontSize = 32;
+            headerText.alignment = TextAlignmentOptions.Center;
+            headerText.fontStyle = FontStyles.Bold;
+            RectTransform headerRT = headerObj.GetComponent<RectTransform>();
+            headerRT.anchorMin = new Vector2(0, 0.8f);
+            headerRT.anchorMax = new Vector2(1, 1);
+            headerRT.offsetMin = Vector2.zero;
+            headerRT.offsetMax = Vector2.zero;
+
+            // Status Text (Main Display)
+            GameObject textObj = new GameObject("StatusText");
+            textObj.transform.SetParent(panelObj.transform, false);
+            statusText = textObj.AddComponent<TextMeshProUGUI>();
+            statusText.text = "Initializing...";
+            statusText.color = Color.white;
+            statusText.fontSize = 28;
+            statusText.alignment = TextAlignmentOptions.Center;
+            RectTransform textRT = textObj.GetComponent<RectTransform>();
+            textRT.anchorMin = new Vector2(0, 0.3f); // Expanded section since button is gone
+            textRT.anchorMax = new Vector2(1, 0.8f);
+            textRT.offsetMin = new Vector2(20, 0);
+            textRT.offsetMax = new Vector2(-20, 0);
+
+            // Controls Guide (Important!)
+            GameObject guideObj = new GameObject("GuideText");
+            guideObj.transform.SetParent(panelObj.transform, false);
+            var guideText = guideObj.AddComponent<TextMeshProUGUI>();
+            guideText.text = "[A] START/STOP   [X] MODE   [Y] RESET UI";
+            guideText.color = Color.yellow;
+            guideText.fontSize = 22;
+            guideText.alignment = TextAlignmentOptions.Center;
+            RectTransform guideRT = guideObj.GetComponent<RectTransform>();
+            guideRT.anchorMin = new Vector2(0, 0.1f); // Bottom
+            guideRT.anchorMax = new Vector2(1, 0.25f);
+            guideRT.offsetMin = Vector2.zero;
+            guideRT.offsetMax = Vector2.zero;
+
+            Debug.Log("[ScanUI] Created Enhanced Fallback UI (No Button)");
+            
+            // Ensure SetupUI is called to position it correctly
+            SetupUI();
         }
     }
 }

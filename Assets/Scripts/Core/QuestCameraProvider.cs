@@ -88,15 +88,27 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
     private void InitializeCameraDevice()
     {
         WebCamDevice[] devices = WebCamTexture.devices;
-        if (devices.Length > 0)
+        if (devices.Length > 1) // Try Camera 1 (tracking camera) instead of Camera 0
         {
+            string camName = devices[1].name; // Camera 1 instead of 0
+            _webCamTexture = new WebCamTexture(camName, requestedWidth, requestedHeight, requestedFPS);
+            
+            _latestColorTexture = new Texture2D(16, 16, TextureFormat.RGB24, false);
+            _latestDepthTexture = new Texture2D(16, 16, TextureFormat.R16, false);
+            
+            Debug.Log($"[QuestProvider] Initialized with camera: {camName} (INDEX 1)");
+            _isInitialized = true;
+        }
+        else if (devices.Length > 0)
+        {
+            // Fallback to Camera 0 if only one exists
             string camName = devices[0].name;
             _webCamTexture = new WebCamTexture(camName, requestedWidth, requestedHeight, requestedFPS);
             
             _latestColorTexture = new Texture2D(16, 16, TextureFormat.RGB24, false);
             _latestDepthTexture = new Texture2D(16, 16, TextureFormat.R16, false);
             
-            Debug.Log($"[QuestProvider] Initialized with camera: {camName}");
+            Debug.Log($"[QuestProvider] Initialized with camera: {camName} (INDEX 0 FALLBACK)");
             _isInitialized = true;
         }
         else
@@ -143,30 +155,63 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
     }
 
 
+
     public void StartStream()
     {
         if (!_isInitialized) 
         {
             Debug.LogWarning("[QuestProvider] Cannot start stream: Not Initialized.");
             Initialize(); // Try initializing
-            return;
+            // Still proceed to start stream coroutine, Initialize is async-ish
         }
+        
+        _isStreaming = true;
+        StartCoroutine(StartStreamRoutine());
+    }
 
-        if (_webCamTexture != null)
+    private IEnumerator StartStreamRoutine()
+    {
+        int attempts = 0;
+        while (_isStreaming && attempts < 5)
         {
-            _webCamTexture.Play();
-            _isStreaming = true;
-            Debug.Log("[QuestProvider] Stream Started");
+            if (_webCamTexture != null)
+            {
+                if (!_webCamTexture.isPlaying)
+                {
+                    _webCamTexture.Play();
+                    Debug.Log($"[QuestProvider] Requesting WebCam Play... (Attempt {attempts + 1})");
+                }
+                else
+                {
+                    Debug.Log("[QuestProvider] Stream is PLAYING!");
+                    yield break; // Success
+                }
+            }
+            else
+            {
+                // Re-init if null
+                InitializeCameraDevice();
+            }
+            
+            yield return new WaitForSeconds(1.0f);
+            attempts++;
+        }
+        
+        if (_isStreaming && (_webCamTexture == null || !_webCamTexture.isPlaying))
+        {
+            Debug.LogError("[QuestProvider] FAILED TO START WEBCAM STREAM! Check Permissions/Device Support.");
+            // We might still proceed with Depth if available?
         }
     }
 
     public void StopStream()
     {
+        _isStreaming = false;
+        StopAllCoroutines(); // Stop retry loop
         if (_webCamTexture != null)
         {
             _webCamTexture.Stop();
         }
-        _isStreaming = false;
         Debug.Log("[QuestProvider] Stream Stopped");
     }
 
@@ -177,52 +222,69 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
 
     public FrameData GetLatestFrame()
     {
+        // 1. Process Color (if available)
         if (_webCamTexture != null && _webCamTexture.isPlaying)
         {
-            // Only update texture on GPU if size changed or just to refresh
-            // Ideally we blit or copy. For now setPixels is slow but functional.
             if (_latestColorTexture.width != _webCamTexture.width || _latestColorTexture.height != _webCamTexture.height)
             {
                 _latestColorTexture.Reinitialize(_webCamTexture.width, _webCamTexture.height);
-                // Depth texture initialization is handled separately via OVR API
             }
             _latestColorTexture.SetPixels32(_webCamTexture.GetPixels32());
             _latestColorTexture.Apply();
-
-            // Fetch Environment Depth if available
-            if (_isDepthSupported && _depthManager != null && _depthManager.IsDepthAvailable)
-            {
-                // Retrieve texture from Global Shader Property set by EnvironmentDepthManager
-                var globalDepthTex = Shader.GetGlobalTexture("_EnvironmentDepthTexture") as RenderTexture;
-                
-                if (globalDepthTex != null)
-                {
-                    // Copy to CPU readable texture
-                    if (_depthRT == null || _depthRT.width != globalDepthTex.width || _depthRT.height != globalDepthTex.height)
-                    {
-                        if (_depthRT != null) _depthRT.Release();
-                        _depthRT = new RenderTexture(globalDepthTex.width, globalDepthTex.height, 0, RenderTextureFormat.R16);
-                    }
-                    
-                    Graphics.Blit(globalDepthTex, _depthRT);
-                    
-                    if (_readableDepth == null || _readableDepth.width != _depthRT.width || _readableDepth.height != _depthRT.height)
-                    {
-                        _readableDepth = new Texture2D(_depthRT.width, _depthRT.height, TextureFormat.R16, false);
-                    }
-                    
-                    RenderTexture.active = _depthRT;
-                    _readableDepth.ReadPixels(new Rect(0, 0, _depthRT.width, _depthRT.height), 0, 0);
-                    _readableDepth.Apply();
-                    RenderTexture.active = null;
-                }
-            }
+        }
+        else
+        {
+            // Fallback Visualization if Camera is BLOCKED/DEAD
+            if (_latestColorTexture.width != requestedWidth) 
+                _latestColorTexture.Reinitialize(requestedWidth, requestedHeight);
+            
+            // Fill with solid color to prove pipeline is alive
+            // Optimized: Create array once if possible, but here just simplistic fill
+            var colors = _latestColorTexture.GetPixels32();
+            Color32 fill = new Color32(0, 0, 200, 255); // Dark Blue
+            for(int i=0; i<colors.Length; i++) colors[i] = fill;
+            _latestColorTexture.SetPixels32(colors);
+            _latestColorTexture.Apply();
         }
 
+        // 2. Process Depth (Even if Color failed, try to get depth!)
+        if (_isDepthSupported && _depthManager != null && _depthManager.IsDepthAvailable)
+        {
+            // Retrieve texture from Global Shader Property set by EnvironmentDepthManager
+            var globalDepthTex = Shader.GetGlobalTexture("_EnvironmentDepthTexture") as RenderTexture;
+            
+            if (globalDepthTex != null)
+            {
+                // Copy to CPU readable texture
+                if (_depthRT == null || _depthRT.width != globalDepthTex.width || _depthRT.height != globalDepthTex.height)
+                {
+                    if (_depthRT != null) _depthRT.Release();
+                    _depthRT = new RenderTexture(globalDepthTex.width, globalDepthTex.height, 0, RenderTextureFormat.R16);
+                }
+                
+                Graphics.Blit(globalDepthTex, _depthRT);
+                
+                if (_readableDepth == null || _readableDepth.width != _depthRT.width || _readableDepth.height != _depthRT.height)
+                {
+                    _readableDepth = new Texture2D(_depthRT.width, _depthRT.height, TextureFormat.R16, false);
+                }
+                
+                RenderTexture.active = _depthRT;
+                _readableDepth.ReadPixels(new Rect(0, 0, _depthRT.width, _depthRT.height), 0, 0);
+                _readableDepth.Apply();
+                RenderTexture.active = null;
+            }
+            else
+            {
+                // Debug.LogWarning("[QuestProvider] _EnvironmentDepthTexture is NULL!"); 
+                // This might happen if Depth API didn't init fully yet.
+            }
+        }
+        
         return new FrameData
         {
             ColorTexture = _latestColorTexture,
-            DepthTexture = _readableDepth != null ? _readableDepth : _latestDepthTexture, // Fallback to non-readable if readable not valid
+            DepthTexture = _readableDepth != null ? _readableDepth : _latestDepthTexture,
             CameraPose = centerEyeAnchor != null ? centerEyeAnchor.localToWorldMatrix : Matrix4x4.identity,
             Timestamp = Time.realtimeSinceStartupAsDouble
         };
@@ -236,9 +298,28 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
 
     void Update()
     {
-        if (_isStreaming && _webCamTexture != null && _webCamTexture.didUpdateThisFrame)
+        if (_isStreaming)
         {
-            _hasNewFrame = true;
+            // If WebCam has new frame OR we have Depth available and some time passed (simulate 30fps)
+            // Ideally we sync with Color. If Color is dead, we rely on Depth.
+            bool colorReady = (_webCamTexture != null && _webCamTexture.didUpdateThisFrame);
+            bool depthReady = (_isDepthSupported && _depthManager != null && _depthManager.IsDepthAvailable);
+            
+            // If color is ready, great.
+            if (colorReady) 
+            {
+                _hasNewFrame = true;
+            }
+            // If color failed but depth is ready, treat as new frame (maybe throttle?)
+            else if (depthReady && !_hasNewFrame)
+            {
+                // Simple throttle to avoid spamming if color is dead
+                 _hasNewFrame = true; 
+            }
+        }
+        else
+        {
+            _hasNewFrame = false;
         }
     }
 
@@ -285,8 +366,9 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
         // A standard value often used for Quest Passthrough recordings is around 80-90 degrees depending on mode.
         
         // Let's create a reasonable approximation.
-        float width = _latestColorTexture != null ? _latestColorTexture.width : requestedWidth;
-        float height = _latestColorTexture != null ? _latestColorTexture.height : requestedHeight;
+        // Use the resolution we asked for if the texture hasn't updated from default 16x16 yet.
+        float width = (_latestColorTexture != null && _latestColorTexture.width > 16) ? _latestColorTexture.width : requestedWidth;
+        float height = (_latestColorTexture != null && _latestColorTexture.height > 16) ? _latestColorTexture.height : requestedHeight;
         
         // If centerEyeAnchor has a Camera component, we might use its FOV if it matches passthrough underlay.
         float fovY = fallbackFOV;
@@ -303,7 +385,56 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
         float cx = width / 2.0f;
         float cy = height / 2.0f;
 
+
         _cachedIntrinsics = new PinholeCameraIntrinsic((int)width, (int)height, fx, fy, cx, cy);
         return _cachedIntrinsics;
+    }
+
+    public void LogDiagnostics(string folderPath)
+    {
+        string logPath = System.IO.Path.Combine(folderPath, "debug_camera_log.txt");
+        using (System.IO.StreamWriter writer = new System.IO.StreamWriter(logPath))
+        {
+            writer.WriteLine($"--- QuestCameraProvider Diagnostic Log ---");
+            writer.WriteLine($"Time: {System.DateTime.Now}");
+            writer.WriteLine($"Initialized: {_isInitialized}");
+            writer.WriteLine($"Selected Camera: {(_webCamTexture != null ? _webCamTexture.deviceName : "NONE")}");
+            writer.WriteLine($"Requested Size: {requestedWidth}x{requestedHeight} @ {requestedFPS}fps");
+            if (_webCamTexture != null)
+            {
+                writer.WriteLine($"Actual Texture Size: {_webCamTexture.width}x{_webCamTexture.height}");
+                writer.WriteLine($"IsPlaying: {_webCamTexture.isPlaying}");
+            }
+
+            writer.WriteLine($"\n--- Available Devices ---");
+            var devices = WebCamTexture.devices;
+            if (devices == null || devices.Length == 0)
+            {
+                writer.WriteLine("NO DEVICES FOUND via WebCamTexture.devices!");
+            }
+            else
+            {
+                for (int i = 0; i < devices.Length; i++)
+                {
+                    writer.WriteLine($"Device [{i}]: {devices[i].name} (FrontFacing: {devices[i].isFrontFacing})");
+                }
+            }
+
+            writer.WriteLine($"\n--- Depth Status ---");
+            writer.WriteLine($"IsDepthSupported: {_isDepthSupported}");
+            if (_depthManager != null)
+            {
+                writer.WriteLine($"Manager Enabled: {_depthManager.enabled}");
+                writer.WriteLine($"IsDepthAvailable: {_depthManager.IsDepthAvailable}");
+            }
+            else
+            {
+                writer.WriteLine("DepthManager is NULL");
+            }
+            
+            writer.WriteLine($"\n--- Permission Status ---");
+            writer.WriteLine($"Camera Permission Granted: {Permission.HasUserAuthorizedPermission(Permission.Camera)}");
+        }
+        Debug.Log($"[QuestProvider] Diagnostics written to: {logPath}");
     }
 }

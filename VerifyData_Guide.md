@@ -71,4 +71,28 @@ for frame in data['frames'][:5]: # Prvih 5
         print(f"Frame {frame['frame_id']} Depth Range: {min_val} - {max_val}")
     else:
         print("Failed to load depth image")
+
+### 6. REŠAVANJE PROBLEMA: Crne Slike (Camera Access)
+Ako dobijate **crne** ili **plave** slike, Quest verovatno blokira pristup kameri zbog privatnosti. Da biste ovo zaobišli i omogućili snimanje:
+
+**Zahtevi:**
+- **Developer Mode** mora biti uključen na Quest 3 headsetu (preko Meta Quest mobilne aplikacije).
+- **ADB (Android Debug Bridge)** mora biti instaliran na PC-u (obično dolazi sa Unity-jem).
+
+**Koraci za otključavanje kamere:**
+1.  Povežite Quest 3 sa PC-jem putem USB kabla.
+2.  Otvorite Terminal (Command Prompt / PowerShell).
+3.  Proverite vezu:
+    ```bash
+    adb devices
+    # Mora vratiti ID uređaja (npr. 1WMHH...)
+    ```
+4.  **Izvršite komandu za dozvolu:**
+    ```bash
+    adb shell pm grant com.UnityTechnologies.com.unity.template.urpblank android.permission.CAMERA
+    ```
+    *(Napomena: Ako ste promenili Bundle Identifier u Player Settings, zamenite `com.UnityTechnologies...` sa vašim ID-jem).*
+
+5.  **Restartujte aplikaciju** na Quest-u (potpuno je ugasite i upalite).
+6.  Sada bi trebalo da vidite **pravu sliku** sobe umesto crne/plave pozadine.
 ```
