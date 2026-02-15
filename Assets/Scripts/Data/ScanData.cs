@@ -34,19 +34,20 @@ namespace QuestGear3D.Scan.Data
     {
         public int width;
         public int height;
-        public CameraMatrix intrinsic_matrix;
+        // Direct access for convenience, or we use intrinsic_matrix.
+        public float fx; 
+        public float fy;
+        public float cx;
+        public float cy;
 
         public PinholeCameraIntrinsic(int w, int h, float fx, float fy, float cx, float cy)
         {
-            width = w;
-            height = h;
-            intrinsic_matrix = new CameraMatrix
-            {
-                fx = fx,
-                fy = fy,
-                cx = cx,
-                cy = cy
-            };
+            this.width = w;
+            this.height = h;
+            this.fx = fx;
+            this.fy = fy;
+            this.cx = cx;
+            this.cy = cy;
         }
     }
 

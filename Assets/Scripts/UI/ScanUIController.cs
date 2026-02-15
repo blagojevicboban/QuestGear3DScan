@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro; // Added for TextMeshPro
 using QuestGear3D.Scan.Core;
+using UnityEngine.EventSystems;
 using QuestGear3D.Scan.Data;
 
 namespace QuestGear3D.Scan.UI
@@ -82,11 +83,10 @@ namespace QuestGear3D.Scan.UI
             }
 
             // Controller Input Check (A / Trigger / Space / Click)
+            // Controller Input Check (A / Space / Click)
+            // Removed Triggers to prevent double-fire with UI Buttons.
             if (OVRInput.GetDown(OVRInput.Button.One) || 
-                OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger) || 
-                OVRInput.GetDown(OVRInput.Button.SecondaryIndexTrigger) ||
-                Input.GetKeyDown(KeyCode.Space) ||
-                Input.GetMouseButtonDown(0))
+                Input.GetKeyDown(KeyCode.Space))
             {
                 Debug.Log($"[ScanUI] Main Action Input Detected. IsScanning: {scanController.IsScanning}");
                 // HAPTIC FEEDBACK ON CLICK
@@ -177,24 +177,16 @@ namespace QuestGear3D.Scan.UI
             {
                 mainCanvas.renderMode = RenderMode.WorldSpace;
                
-                // Find OVRCameraRig anchors
+                // Find OVRCameraRig anchors (Optional)
                 Transform anchor = null;
                 OVRCameraRig rig = FindObjectOfType<OVRCameraRig>();
-                if (rig != null)
-                {
-                    // Try Left Hand Anchor (Watch Style)
-                    anchor = rig.leftHandAnchor;
-                    Debug.Log("[ScanUI] Found OVRCameraRig Left Hand Anchor.");
-                }
                 
-                // Fallback to Main Camera (Head) if no rig or hand
-                if (anchor == null)
-                {
-                     Camera cam = Camera.main;
-                     if (cam == null) cam = FindObjectOfType<Camera>();
-                     if (cam != null) anchor = cam.transform;
-                }
+                // DEFAULT TO HEAD (Safe)
+                Camera cam = Camera.main;
+                if (cam == null) cam = FindObjectOfType<Camera>();
+                if (cam != null) anchor = cam.transform;
 
+                // Note: We can switch to Hand via Y button if needed, but start with Head to ensure visibility
                 if (anchor != null)
                 {
                     mainCanvas.transform.SetParent(anchor, false);
@@ -204,6 +196,19 @@ namespace QuestGear3D.Scan.UI
                 {
                     Debug.LogError("[ScanUI] NO ANCHOR FOUND!");
                 }
+                
+                FixPassthrough();
+            }
+        }
+
+        void FixPassthrough()
+        {
+            var layer = FindObjectOfType<OVRPassthroughLayer>();
+            if (layer != null)
+            {
+                Debug.Log("[ScanUI] Setting OVRPassthroughLayer to UNDERLAY.");
+                // Note: overlayType property uses the OVROverlay.OverlayType enum in some SDK versions
+                layer.overlayType = OVROverlay.OverlayType.Underlay;
             }
         }
 
@@ -213,44 +218,27 @@ namespace QuestGear3D.Scan.UI
             
             // Force Resolution/Size
             RectTransform rt = mainCanvas.GetComponent<RectTransform>();
-            if (rt != null)
-            {
-                rt.sizeDelta = new Vector2(600, 400); // Ensure it has size!
-            }
+            if (rt != null) rt.sizeDelta = new Vector2(600, 400);
 
-            // Check if attached to Hand or Head
-            OVRCameraRig rig = FindObjectOfType<OVRCameraRig>();
-            bool isHand = (rig != null && mainCanvas.transform.parent == rig.leftHandAnchor);
-
-            if (isHand)
-            {
-                // wrist Watch
-                mainCanvas.transform.localPosition = new Vector3(0.05f, 0.05f, 0.15f); 
-                mainCanvas.transform.localRotation = Quaternion.Euler(45, 0, 0);
-                mainCanvas.transform.localScale = Vector3.one * 0.0008f;
-            }
-            else
-            {
-                // Head Floating
-                mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.6f); 
-                mainCanvas.transform.localRotation = Quaternion.identity;
-                mainCanvas.transform.localScale = Vector3.one * 0.001f;
-            }
+            // Default: Float in front of Head
+            mainCanvas.transform.localPosition = new Vector3(0, -0.1f, 0.6f); 
+            mainCanvas.transform.localRotation = Quaternion.identity;
+            mainCanvas.transform.localScale = Vector3.one * 0.001f;
         }
 
         void LateUpdate()
         {
-             // Input to Recenter UI (Y Button)
+             // Debug.Log($"[ScanUI DEBUG] Canvas LocalPos: {mainCanvas.transform.localPosition} Active: {mainCanvas.gameObject.activeSelf}");
+
+             // Recenter UI (Y Button) - Force to Head
              if (OVRInput.GetDown(OVRInput.Button.Four))
              {
                  Debug.Log("[ScanUI] Recenter UI Requested");
-                 // Move to Head
                  Camera cam = Camera.main;
                  if (cam != null)
                  {
                      mainCanvas.transform.SetParent(cam.transform, false);
                      ResetUIPosition();
-                     // Vibrate
                      OVRInput.SetControllerVibration(0.5f, 0.5f, OVRInput.Controller.LTouch);
                      Invoke("StopVibration", 0.2f);
                  }

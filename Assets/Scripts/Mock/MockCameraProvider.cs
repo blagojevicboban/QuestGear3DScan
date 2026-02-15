@@ -121,4 +121,19 @@ public class MockCameraProvider : MonoBehaviour, IFrameProvider
     {
          Debug.Log($"[MockProvider] Set Flashlight: {enabled}");
     }
+
+    public PinholeCameraIntrinsic GetIntrinsics()
+    {
+        // Mock intrinsics based on camera object or defaults
+        float w = colorRT != null ? colorRT.width : 1280;
+        float h = colorRT != null ? colorRT.height : 720;
+        float fov = mockCamera != null ? mockCamera.fieldOfView : 60f;
+        
+        float fy = (h / 2.0f) / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad);
+        float fx = fy;
+        float cx = w / 2.0f;
+        float cy = h / 2.0f;
+        
+        return new PinholeCameraIntrinsic((int)w, (int)h, fx, fy, cx, cy);
+    }
 }

@@ -117,6 +117,12 @@ namespace QuestGear3D.Scan.Core
                     useFlashlight = useFlashlight
                 };
                 dataManager.StartNewScan(CurrentScanMode, settings);
+                
+                // Set accurate intrinsics if available
+                if (_frameProvider != null)
+                {
+                    dataManager.SetIntrinsics(_frameProvider.GetIntrinsics());
+                }
             }
 
             IsScanning = true;

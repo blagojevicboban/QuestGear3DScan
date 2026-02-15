@@ -1,10 +1,19 @@
 # ninja log v5
+9491	15801	7927568033044924	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	e590226b35154991
 11	11646	7927567956977443	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	4e72a695a80d422b
+10575	16238	7927568037290385	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	bb967b550ea134f4
 2491	11704	7927567977915353	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	b0de2fb1cade3311
 6338	12123	7927567996179084	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	a98c49aa77db27b7
 5049	12156	7927567996306395	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	44aec1f460d3338b
 7414	14391	7927568018855979	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	a2a2644a28665632
 8391	14664	7927568021666174	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	5b8e5d192cf156cf
-9491	15801	7927568033044924	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	e590226b35154991
-10575	16238	7927568037290385	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	bb967b550ea134f4
 16239	17882	7927568053681498	C:/QuestGear3D/QuestGear3DScan/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/Debug/652f734k/obj/arm64-v8a/libgame.so	668b8ccfbac5354b
+35	7293	7928126062212198	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	44aec1f460d3338b
+91	7301	7928126066013263	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	b0de2fb1cade3311
+889	7307	7928126079211129	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	4e72a695a80d422b
+1994	7351	7928126089267286	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	a98c49aa77db27b7
+2867	8325	7928126099253303	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	bb967b550ea134f4
+3727	9607	7928126111865355	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	a2a2644a28665632
+5095	10151	7928126117632244	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	5b8e5d192cf156cf
+6312	11147	7928126127568074	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	e590226b35154991
+11148	11750	7928126133622140	C:/QuestGear3D/QuestGear3DScan/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/Debug/652f734k/obj/arm64-v8a/libgame.so	668b8ccfbac5354b

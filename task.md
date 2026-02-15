@@ -8,7 +8,7 @@
     - [x] [RESEARCH] Verify Raw RGB Camera Access on Quest 3 Standalone <!-- id: 3 -->
     - [x] [RESEARCH] Verify Depth API Access quality and format <!-- id: 4 -->
     - [x] [RESEARCH] Evaluate Meta Scene API (Rooms) <!-- id: 18 -->
-    - [ ] [RESEARCH] Evaluate Spatial SDK (Gaussian Splatting) <!-- id: 19 -->
+    - [x] [RESEARCH] Evaluate Spatial SDK (Gaussian Splatting) (Completed, see RESEARCH_SPATIAL_SDK.md) <!-- id: 19 -->
 - [/] **Core Implementation**
     - [x] **Architecture (Offline Safe)**
         - [x] Define `IFrameProvider` interface (Color, Depth, Pose) <!-- id: 21 -->
@@ -17,9 +17,9 @@
         - [x] Implement `QuestCameraProvider` (Wrapper around WebCamTexture/Passthrough) <!-- id: 5 -->
         - [x] Implement Pose Tracking (Wrapper around OVRCameraRig) <!-- id: 6 -->
         - [x] Synchronize RGB + Pose Capture <!-- id: 7 -->
-    - [ ] **Depth Module**
-        - [ ] Integrate Meta & Depth API <!-- id: 8 -->
-        - [ ] Capture Depth Maps aligned with RGB <!-- id: 9 -->
+    - [/] **Depth Module**
+        - [x] Integrate Meta & Depth API (Implemented via OVRPlugin.GetEnvironmentDepthTextureId) <!-- id: 8 -->
+        - [x] Capture Depth Maps aligned with RGB (Added GPU->CPU readback for saving) <!-- id: 9 -->
     - [x] **Data Management (Offline Capable)**
         - [x] Define ScanData structure (JSON/Open3D format) <!-- id: 10 -->
         - [x] Implement File I/O (Save images/depth/json to disk) <!-- id: 11 -->
@@ -28,9 +28,10 @@
     - [x] Create simple "Start/Stop Scan" Dashboard <!-- id: 12 -->
     - [x] Add status indicators (FPS, Buffer usage) <!-- id: 13 -->
 - [/] **Integration**
-    - [x] Test Data Export to PC <!-- id: 15 -->
+    - [x] Integrate Test Data Export to PC <!-- id: 15 -->
         - [x] Create `SimpleHTTPServer` for Wi-Fi transfer <!-- id: 23 -->
-    - [ ] Verify imported data in QuestGear 3D Studio <!-- id: 16 -->
+    - [x] Verify imported data in QuestGear 3D Studio (NerfStudio compatible export) <!-- id: 16 -->
 - [x] **Documentation**
     - [x] Update README with Scan Modes <!-- id: 24 -->
     - [x] Update README with Configuration Options <!-- id: 25 -->
+    - [x] Create VerifyData_Guide.md <!-- id: 26 -->

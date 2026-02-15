@@ -65,6 +65,8 @@ namespace QuestGear3D.Scan.Data
             _currentScanData.scanId = scanName;
             _currentScanData.scanMode = mode.ToString();
             _currentScanData.settings = settings;
+            _currentScanData.settings = settings;
+            // Default intrinsics, should be updated by controller
             _currentScanData.intrinsic = new PinholeCameraIntrinsic(1280, 720, 1000, 1000, 640, 360); 
             
             // Init Scene Data
@@ -76,6 +78,14 @@ namespace QuestGear3D.Scan.Data
             Task.Run(ProcessSaveQueue); 
             
             Debug.Log($"Started scan: {_currentScanFolder} (Mode: {mode})");
+        }
+
+        public void SetIntrinsics(PinholeCameraIntrinsic intrinsics)
+        {
+            if (_currentScanData != null)
+            {
+                _currentScanData.intrinsic = intrinsics;
+            }
         }
 
         public void StopScan()
@@ -189,6 +199,17 @@ namespace QuestGear3D.Scan.Data
             string json = JsonUtility.ToJson(_currentScanData, true);
             string path = Path.Combine(_currentScanFolder, "scan_data.json");
             File.WriteAllText(path, json);
+
+            // Export NerfStudio format
+            try 
+            {
+               NerfStudioExporter.Export(_currentScanFolder, _currentScanData);
+               Debug.Log("Exported transforms.json for NerfStudio.");
+            }
+            catch(System.Exception e)
+            {
+                Debug.LogError($"Failed to export NerfStudio JSON: {e.Message}");
+            }
         }
 
         private void SaveSceneData()

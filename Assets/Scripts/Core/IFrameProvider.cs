@@ -1,5 +1,7 @@
 using UnityEngine;
 
+using QuestGear3D.Scan.Data;
+
 namespace QuestGear3D.Scan.Core
 {
     public struct FrameData
@@ -34,5 +36,8 @@ namespace QuestGear3D.Scan.Core
         void SetResolution(int width, int height);
         void SetFPS(int fps);
         void SetFlashlight(bool enabled);
+
+        // Intrinsics
+        PinholeCameraIntrinsic GetIntrinsics();
     }
 }

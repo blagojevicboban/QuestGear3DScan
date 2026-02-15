@@ -9,6 +9,8 @@
 -   **Wi-Fi Data Export**: Built-in HTTP server for wireless download of scan data.
 -   **Offline Dev Mode**: Full mock implementation for testing without a headset in Unity Editor.
 -   **Async I/O**: High-performance non-blocking data serialization.
+-   **NerfStudio Ready**: Automatically exports `transforms.json` for direct training of Gaussian Splats.
+-   **Depth API Integration**: Utilizes Meta's Environment Depth for accurate geometry.
 
 ## 📷 Scan Modes
 
@@ -22,7 +24,11 @@ The application supports two distinct scanning modes tailored for different use 
 -   **Space Mode**: 
     -   Designed for room-scale scanning and environment capture.
     -   Captures broader geometry with a focus on spatial layout.
+-   **Space Mode**: 
+    -   Designed for room-scale scanning and environment capture.
+    -   Captures broader geometry with a focus on spatial layout.
     -   Ideal for architectural surveys, room walkthroughs, and VR environment creation.
+    -   *Note: Utilizes Meta Scene API for semantic understanding.*
 
 ## 📦 Installation
 
@@ -68,12 +74,13 @@ adb pull /sdcard/Android/data/com.QuestGear3D.Scan/files/Scans/ ./MyScans/
 ## 📂 Data Format
 
 Each scan is saved in a timestamped folder containing:
--   `scan_meta.json`: Camera intrinsics and frame metadata.
--   `frames/`: Directory containing:
-    -   `color_XXXX.jpg`: RGB Frame.
-    -   `depth_XXXX.png`: 16-bit Depth Map (millimeter scale).
+-   `scan_data.json`: Comprehensive metadata including camera intrinsics and frame poses.
+-   `transforms.json`: **NerfStudio** compatible file for training Gaussian Splats.
+-   `color/`: Directory containing RGB frames (`frame_XXXXXX.jpg`).
+-   `depth/`: Directory containing 16-bit Depth Maps (`frame_XXXXXX.png`).
 
 ## 📚 Documentation
 
 -   [Offline Development Guide](docs/OFFLINE_DEV_GUIDE.md): How to work without a headset.
--   [Feasibility Tests](docs/FEASIBILITY_TESTS.md): API verification details.
+-   [Research: Spatial SDK & Splatting](RESEARCH_SPATIAL_SDK.md): Evaluation of Meta's visualization capabilities.
+-   [Data Verification Guide](VerifyData_Guide.md): How to inspect and validate captured data.
