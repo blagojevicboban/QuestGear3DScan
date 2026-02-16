@@ -66,3 +66,4 @@ All scan data is saved on the headset in the app's private storage folder.
 - **I don't see the menu**: Look at your left wrist (watch position). If not visible, press **Y** on the left controller to reset it in front of your face.
 - **Camera is Black/Pink**: The app might lack permission to access the camera or Quest 3 privacy settings block RGB access. Check Settings > Apps > Permissions.
 - **Room not loading**: Ensure you completed Room Setup fully. Try restarting the app.
+- **External Depth**: If using an external sensor (e.g., Structure Core), ensure it is selected in the `QuestCameraProvider` inspector. The app will automatically prioritize it over Quest internal depth.

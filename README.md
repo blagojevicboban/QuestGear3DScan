@@ -11,6 +11,8 @@
 -   **Async I/O**: High-performance non-blocking data serialization.
 -   **NerfStudio Ready**: Automatically exports `transforms.json` for direct training of Gaussian Splats.
 -   **Depth API Integration**: Utilizes Meta's Environment Depth for accurate geometry.
+-   **[NEW] External Depth Support**: Pluggable interface for professional sensors (RealSense/Structure).
+-   **[NEW] Scene Capture**: Automatic extraction of room geometry via Meta Scene API.
 
 ## 📷 Scan Modes
 

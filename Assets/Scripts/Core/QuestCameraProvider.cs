@@ -34,6 +34,11 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
     private RenderTexture _depthRT;
     private Texture2D _readableDepth;
 
+    [Header("External Depth (Optional)")]
+    public GameObject externalDepthSource; 
+    private QuestGear3D.Scan.Sensors.IDepthProvider _externalDepthProvider;
+
+
     public void Initialize()
     {
         if (_isInitialized) return;
@@ -50,6 +55,21 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             {
                 // Fallback to Main Camera
                 if (Camera.main != null) centerEyeAnchor = Camera.main.transform;
+            }
+        }
+        
+        // Initialize External Depth if assigned
+        if (externalDepthSource != null)
+        {
+            _externalDepthProvider = externalDepthSource.GetComponent<QuestGear3D.Scan.Sensors.IDepthProvider>();
+            if (_externalDepthProvider != null)
+            {
+                _externalDepthProvider.Initialize();
+                Debug.Log("[QuestProvider] External Depth Provider Initialized.");
+            }
+            else
+            {
+                Debug.LogWarning("[QuestProvider] External Depth Source assigned but no IDepthProvider found!");
             }
         }
 
@@ -247,8 +267,12 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             _latestColorTexture.Apply();
         }
 
-        // 2. Process Depth (Even if Color failed, try to get depth!)
-        if (_isDepthSupported && _depthManager != null && _depthManager.IsDepthAvailable)
+        // 2. Process Depth (Priority: External > Internal)
+        if (_externalDepthProvider != null && _externalDepthProvider.IsReady())
+        {
+            _readableDepth = _externalDepthProvider.GetDepthTexture();
+        }
+        else if (_isDepthSupported && _depthManager != null && _depthManager.IsDepthAvailable)
         {
             // Retrieve texture from Global Shader Property set by EnvironmentDepthManager
             var globalDepthTex = Shader.GetGlobalTexture("_EnvironmentDepthTexture") as RenderTexture;
