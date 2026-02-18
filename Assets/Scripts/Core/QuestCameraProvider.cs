@@ -24,6 +24,10 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
     [Header("References")]
     public Transform centerEyeAnchor; // Assign OVRCameraRig -> CenterEyeAnchor
     
+    [Header("Depth Readback")]
+    [Tooltip("Compute shader for reading Texture2DArray depth. Assign CopyDepthSlice.compute.")]
+    public ComputeShader copyDepthShader;
+    
     private WebCamTexture _webCamTexture;
     private Texture2D _latestColorTexture;
     private Texture2D _latestDepthTexture;
@@ -36,6 +40,17 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
     private Texture2D _readableDepth;
     private Coroutine _resumeCoroutine;
     private const float RESUME_DELAY = 0.5f;
+    
+    // Compute shader depth readback
+    private ComputeBuffer _depthBuffer;
+    private float[] _depthData;
+    private int _depthKernel = -1;
+    private bool _depthShaderReady = false;
+    private bool _loggedDepthTextureType = false;
+    
+    // Skip first N frames (camera warmup)
+    private int _capturedFrameCount = 0;
+    private const int WARMUP_FRAMES = 2;
 
     [Header("External Depth (Optional)")]
     public GameObject externalDepthSource; 
@@ -245,9 +260,17 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
 
     public FrameData GetLatestFrame()
     {
+        _capturedFrameCount++;
+        
         // 1. Process Color (if available)
         if (_webCamTexture != null && _webCamTexture.isPlaying)
         {
+            // Skip warmup frames (camera returns black/garbage initially)
+            if (_capturedFrameCount <= WARMUP_FRAMES)
+            {
+                Debug.Log($"[QuestProvider] Skipping warmup frame {_capturedFrameCount}/{WARMUP_FRAMES}");
+            }
+            
             if (_latestColorTexture.width != _webCamTexture.width || _latestColorTexture.height != _webCamTexture.height)
             {
                 _latestColorTexture.Reinitialize(_webCamTexture.width, _webCamTexture.height);
@@ -261,8 +284,6 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             if (_latestColorTexture.width != requestedWidth) 
                 _latestColorTexture.Reinitialize(requestedWidth, requestedHeight);
             
-            // Fill with solid color to prove pipeline is alive
-            // Optimized: Create array once if possible, but here just simplistic fill
             var colors = _latestColorTexture.GetPixels32();
             Color32 fill = new Color32(0, 0, 200, 255); // Dark Blue
             for(int i=0; i<colors.Length; i++) colors[i] = fill;
@@ -270,42 +291,14 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             _latestColorTexture.Apply();
         }
 
-        // 2. Process Depth (Priority: External > Internal)
+        // 2. Process Depth (Priority: External > Internal via ComputeShader)
         if (_externalDepthProvider != null && _externalDepthProvider.IsReady())
         {
             _readableDepth = _externalDepthProvider.GetDepthTexture();
         }
         else if (_isDepthSupported && _depthManager != null && _depthManager.IsDepthAvailable)
         {
-            // Retrieve texture from Global Shader Property set by EnvironmentDepthManager
-            var globalDepthTex = Shader.GetGlobalTexture("_EnvironmentDepthTexture") as RenderTexture;
-            
-            if (globalDepthTex != null)
-            {
-                // Copy to CPU readable texture
-                if (_depthRT == null || _depthRT.width != globalDepthTex.width || _depthRT.height != globalDepthTex.height)
-                {
-                    if (_depthRT != null) _depthRT.Release();
-                    _depthRT = new RenderTexture(globalDepthTex.width, globalDepthTex.height, 0, RenderTextureFormat.R16);
-                }
-                
-                Graphics.Blit(globalDepthTex, _depthRT);
-                
-                if (_readableDepth == null || _readableDepth.width != _depthRT.width || _readableDepth.height != _depthRT.height)
-                {
-                    _readableDepth = new Texture2D(_depthRT.width, _depthRT.height, TextureFormat.R16, false);
-                }
-                
-                RenderTexture.active = _depthRT;
-                _readableDepth.ReadPixels(new Rect(0, 0, _depthRT.width, _depthRT.height), 0, 0);
-                _readableDepth.Apply();
-                RenderTexture.active = null;
-            }
-            else
-            {
-                // Debug.LogWarning("[QuestProvider] _EnvironmentDepthTexture is NULL!"); 
-                // This might happen if Depth API didn't init fully yet.
-            }
+            ReadDepthFromGlobalTexture();
         }
         
         return new FrameData
@@ -315,6 +308,139 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             CameraPose = centerEyeAnchor != null ? centerEyeAnchor.localToWorldMatrix : Matrix4x4.identity,
             Timestamp = Time.realtimeSinceStartupAsDouble
         };
+    }
+    
+    /// <summary>
+    /// Reads the Environment Depth texture using multiple strategies:
+    /// 1. ComputeShader path for Texture2DArray (Quest native format)
+    /// 2. RenderTexture direct blit (fallback)
+    /// 3. Texture2D direct ReadPixels (last resort)
+    /// </summary>
+    private void ReadDepthFromGlobalTexture()
+    {
+        var globalTex = Shader.GetGlobalTexture("_EnvironmentDepthTexture");
+        if (globalTex == null) return;
+        
+        // Log the texture type once for diagnostics
+        if (!_loggedDepthTextureType)
+        {
+            _loggedDepthTextureType = true;
+            Debug.Log($"[QuestProvider] _EnvironmentDepthTexture type: {globalTex.GetType().Name}, " +
+                      $"dimension: {globalTex.dimension}, size: {globalTex.width}x{globalTex.height}");
+        }
+        
+        // Strategy 1: Texture2DArray + ComputeShader (works on Quest)
+        if (globalTex.dimension == UnityEngine.Rendering.TextureDimension.Tex2DArray)
+        {
+            ReadDepthViaComputeShader(globalTex);
+            return;
+        }
+        
+        // Strategy 2: RenderTexture direct blit (Editor / some devices)
+        var rtTex = globalTex as RenderTexture;
+        if (rtTex != null)
+        {
+            ReadDepthViaRenderTexture(rtTex);
+            return;
+        }
+        
+        // Strategy 3: Texture2D direct read (unlikely but safe)
+        var tex2D = globalTex as Texture2D;
+        if (tex2D != null && tex2D.width > 16)
+        {
+            _readableDepth = tex2D;
+            return;
+        }
+    }
+    
+    /// <summary>
+    /// Uses CopyDepthSlice compute shader to read one slice from Texture2DArray into a buffer.
+    /// </summary>
+    private void ReadDepthViaComputeShader(Texture globalTex)
+    {
+        if (copyDepthShader == null)
+        {
+            // Auto-load compute shader if not assigned in Inspector
+            if (!_depthShaderReady)
+            {
+                copyDepthShader = Resources.Load<ComputeShader>("CopyDepthSlice");
+                if (copyDepthShader == null)
+                {
+                    Debug.LogWarning("[QuestProvider] CopyDepthSlice compute shader not found! " +
+                                     "Assign it in Inspector or place in Resources folder.");
+                }
+                _depthShaderReady = true; // Don't spam
+            }
+            if (copyDepthShader == null) return;
+        }
+        
+        int w = globalTex.width;
+        int h = globalTex.height;
+        int totalPixels = w * h;
+        
+        // Initialize compute shader kernel
+        if (_depthKernel < 0)
+        {
+            _depthKernel = copyDepthShader.FindKernel("CopySlice");
+            Debug.Log($"[QuestProvider] Depth compute shader ready. Kernel={_depthKernel}, TexSize={w}x{h}");
+        }
+        
+        // Create/resize GPU buffer
+        if (_depthBuffer == null || _depthBuffer.count != totalPixels)
+        {
+            _depthBuffer?.Release();
+            _depthBuffer = new ComputeBuffer(totalPixels, sizeof(float));
+            _depthData = new float[totalPixels];
+        }
+        
+        // Dispatch compute shader
+        copyDepthShader.SetTexture(_depthKernel, "_InputTex", globalTex);
+        copyDepthShader.SetBuffer(_depthKernel, "_OutputBuffer", _depthBuffer);
+        copyDepthShader.SetInt("_Width", w);
+        copyDepthShader.SetInt("_Height", h);
+        copyDepthShader.SetInt("_SliceIndex", 0); // Left eye
+        
+        int groupsX = Mathf.CeilToInt(w / 8f);
+        int groupsY = Mathf.CeilToInt(h / 8f);
+        copyDepthShader.Dispatch(_depthKernel, groupsX, groupsY, 1);
+        
+        // Read back to CPU
+        _depthBuffer.GetData(_depthData);
+        
+        // Convert float buffer to Texture2D (RFloat format)
+        if (_readableDepth == null || _readableDepth.width != w || _readableDepth.height != h)
+        {
+            _readableDepth = new Texture2D(w, h, TextureFormat.RFloat, false);
+        }
+        
+        // Set pixel data from float array
+        var nativeArray = _readableDepth.GetRawTextureData<float>();
+        nativeArray.CopyFrom(_depthData);
+        _readableDepth.Apply();
+    }
+    
+    /// <summary>
+    /// Fallback: direct RenderTexture blit for non-array depth textures.
+    /// </summary>
+    private void ReadDepthViaRenderTexture(RenderTexture source)
+    {
+        if (_depthRT == null || _depthRT.width != source.width || _depthRT.height != source.height)
+        {
+            if (_depthRT != null) _depthRT.Release();
+            _depthRT = new RenderTexture(source.width, source.height, 0, RenderTextureFormat.RFloat);
+        }
+        
+        Graphics.Blit(source, _depthRT);
+        
+        if (_readableDepth == null || _readableDepth.width != _depthRT.width || _readableDepth.height != _depthRT.height)
+        {
+            _readableDepth = new Texture2D(_depthRT.width, _depthRT.height, TextureFormat.RFloat, false);
+        }
+        
+        RenderTexture.active = _depthRT;
+        _readableDepth.ReadPixels(new Rect(0, 0, _depthRT.width, _depthRT.height), 0, 0);
+        _readableDepth.Apply();
+        RenderTexture.active = null;
     }
 
     // Helper for UI to preview the raw feed
@@ -491,6 +617,23 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
                 writer.WriteLine("DepthManager is NULL");
             }
             
+            // Log actual depth texture info
+            var globalDepthTex = Shader.GetGlobalTexture("_EnvironmentDepthTexture");
+            if (globalDepthTex != null)
+            {
+                writer.WriteLine($"DepthTexture Type: {globalDepthTex.GetType().Name}");
+                writer.WriteLine($"DepthTexture Dimension: {globalDepthTex.dimension}");
+                writer.WriteLine($"DepthTexture Size: {globalDepthTex.width}x{globalDepthTex.height}");
+            }
+            else
+            {
+                writer.WriteLine("DepthTexture: NOT SET (global shader property is null)");
+            }
+            
+            writer.WriteLine($"ComputeShader: {(copyDepthShader != null ? "Assigned" : "NOT assigned")}");
+            writer.WriteLine($"ExternalDepthSource: {(externalDepthSource != null ? externalDepthSource.name : "None")}");
+            writer.WriteLine($"ExternalDepthProvider: {(_externalDepthProvider != null ? "Ready" : "N/A")}");
+
             writer.WriteLine($"\n--- Permission Status ---");
             writer.WriteLine($"Camera Permission Granted: {Permission.HasUserAuthorizedPermission(Permission.Camera)}");
         }
@@ -558,6 +701,12 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
         if (_depthRT != null)
         {
             _depthRT.Release();
+        }
+        
+        if (_depthBuffer != null)
+        {
+            _depthBuffer.Release();
+            _depthBuffer = null;
         }
     }
 }

@@ -85,7 +85,10 @@ adb pull /sdcard/Android/data/com.Mejkerslab.QuestGear3DScan/files/Scans/ ./MySc
 |---|---|
 | **Menu not visible** | Look at left wrist (watch position). Press **Y** to reset in front of face. |
 | **Camera is black/pink** | Check Settings → Apps → QuestGear 3D Scan → Permissions. Enable Camera access. Ensure `horizonos.permission.HEADSET_CAMERA` is granted. |
+| **First frame is black** | Normal — camera needs 1-2 frames to warm up. These are skipped automatically. |
 | **Room not loading** | Complete Room Setup fully. Try restarting the app. |
-| **No depth data** | Ensure Environment Depth is supported on your device (Quest 3/3S only). |
-| **Camera stops after pause** | This is now auto-handled — camera restarts when you put the headset back on. |
+| **Depth files tiny (1.4KB)** | Check `debug_camera_log.txt` for `DepthTexture Type`. Should show `Texture2DArray`. If `ComputeShader: NOT assigned`, ensure `CopyDepthSlice.compute` is in `Assets/Resources/`. |
+| **No depth data** | Ensure Environment Depth is supported (Quest 3/3S only). Check `debug_camera_log.txt` → `IsDepthAvailable` should be `True`. |
+| **Camera stops after pause** | Auto-handled — camera restarts when you put the headset back on. |
 | **External Depth** | Assign sensor to `QuestCameraProvider.externalDepthSource` in Inspector. The app auto-prioritizes it over internal depth. |
+

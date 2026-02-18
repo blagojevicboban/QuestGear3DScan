@@ -1,0 +1,22 @@
+// Copies a single slice from a Texture2DArray into a flat float buffer.
+// Used to read Environment Depth data from Quest's Texture2DArray format into CPU-readable data.
+
+#pragma kernel CopySlice
+
+Texture2DArray<float> _InputTex;
+RWStructuredBuffer<float> _OutputBuffer;
+uint _Width;
+uint _Height;
+uint _SliceIndex; // 0 = left eye, 1 = right eye
+
+[numthreads(8, 8, 1)]
+void CopySlice(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Width || id.y >= _Height) return;
+
+    // Flip Y (GPU textures are bottom-up)
+    uint v = _Height - id.y - 1;
+
+    float depth = _InputTex[float3(id.x, v, _SliceIndex)];
+    _OutputBuffer[id.x + id.y * _Width] = depth;
+}

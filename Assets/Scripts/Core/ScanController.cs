@@ -29,11 +29,15 @@ namespace QuestGear3D.Scan.Core
         // Scene API Reference
         public OVRSceneManager sceneManager;
 
-
         // Corrected Properties to match existing API (Capitalized)
         [field: Header("Status")]
         public bool IsScanning { get; private set; }
         public float CurrentCountdown { get; private set; }
+        
+        /// <summary>True when Space Mode scene model has loaded and is ready to capture.</summary>
+        public bool IsSceneModelLoaded { get; private set; }
+        private bool _waitingForSceneCapture = false;
+        private Coroutine _roomCaptureRetry;
 
         void Awake()
         {
@@ -152,6 +156,9 @@ namespace QuestGear3D.Scan.Core
             if (CurrentScanMode == ScanMode.Space)
             {
                 // Space Mode: Trigger Scene Capture (Force new scan)
+                IsSceneModelLoaded = false;
+                _waitingForSceneCapture = true;
+                
                 if (sceneManager != null)
                 {
                     Debug.Log("[Scan] Requesting Scene Capture... (Forcing Room Setup)");
@@ -198,6 +205,15 @@ namespace QuestGear3D.Scan.Core
         private void OnSceneModelLoaded()
         {
             Debug.Log("[ScanController] Scene Model Loaded Successfully!");
+            IsSceneModelLoaded = true;
+            _waitingForSceneCapture = false;
+            
+            // If we're in an active Space scan, auto-capture the room data now
+            if (IsScanning && CurrentScanMode == ScanMode.Space)
+            {
+                Debug.Log("[ScanController] Auto-capturing room data after scene model load.");
+                CaptureRoomData();
+            }
         }
 
         private void OnNoSceneModelToLoad()
@@ -230,24 +246,67 @@ namespace QuestGear3D.Scan.Core
             if (CurrentScanMode == ScanMode.Object)
             {
                 if (_frameProvider != null) _frameProvider.StopStream();
+                if (dataManager != null) dataManager.StopScan();
             }
             else 
             {
-                // Space Mode: Capture logical completion
-                CaptureRoomData();
+                // Space Mode: Try to capture room now, or wait for model to load
+                if (IsSceneModelLoaded)
+                {
+                    // Already loaded — capture immediately
+                    CaptureRoomData();
+                    if (dataManager != null) dataManager.StopScan();
+                }
+                else if (_waitingForSceneCapture)
+                {
+                    // Scene is still loading — start retry coroutine
+                    Debug.Log("[Scan] Scene model still loading. Waiting before capturing room data...");
+                    _roomCaptureRetry = StartCoroutine(WaitForSceneAndCapture());
+                }
+                else
+                {
+                    Debug.LogWarning("[Scan] No scene capture was requested. Saving without room data.");
+                    if (dataManager != null) dataManager.StopScan();
+                }
             }
-
-            if (dataManager != null) dataManager.StopScan();
             
             Debug.Log("[ScanController] Scan STOPPED");
         }
         
+        /// <summary>
+        /// Waits up to 15 seconds for the scene model to load before capturing.
+        /// </summary>
+        private IEnumerator WaitForSceneAndCapture()
+        {
+            float timeout = 15f;
+            float waited = 0f;
+            
+            while (!IsSceneModelLoaded && waited < timeout)
+            {
+                yield return new WaitForSeconds(0.5f);
+                waited += 0.5f;
+            }
+            
+            if (IsSceneModelLoaded)
+            {
+                Debug.Log($"[Scan] Scene model loaded after {waited:F1}s wait.");
+                CaptureRoomData();
+            }
+            else
+            {
+                Debug.LogWarning($"[Scan] Timed out waiting for scene model ({timeout}s). Room data not captured.");
+            }
+            
+            if (dataManager != null) dataManager.StopScan();
+            _roomCaptureRetry = null;
+        }
+        
         private void CaptureRoomData()
         {
-            // Try to find the loaded room
             var rooms = FindObjectsOfType<OVRSceneRoom>();
             if (rooms.Length > 0 && dataManager != null)
             {
+                Debug.Log($"[Scan] Found {rooms.Length} OVRSceneRoom(s). Capturing...");
                 dataManager.CaptureSceneModel(rooms[0]);
             }
             else

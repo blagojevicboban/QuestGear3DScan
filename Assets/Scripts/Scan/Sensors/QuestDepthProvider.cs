@@ -6,7 +6,7 @@ namespace QuestGear3D.Scan.Sensors
 {
     /// <summary>
     /// Concrete IDepthProvider implementation using Meta Quest's Environment Depth API.
-    /// Reads the depth texture from EnvironmentDepthManager and converts it to CPU-readable format.
+    /// Uses a ComputeShader to read from Texture2DArray (Quest native format) into CPU-readable data.
     /// </summary>
     public class QuestDepthProvider : MonoBehaviour, IDepthProvider
     {
@@ -16,11 +16,22 @@ namespace QuestGear3D.Scan.Sensors
         
         [Tooltip("Reference to OVRCameraRig's center eye. Auto-found if null.")]
         [SerializeField] private Transform centerEyeAnchor;
+        
+        [Tooltip("Compute shader for reading Texture2DArray depth. Auto-loaded from Resources if null.")]
+        [SerializeField] private ComputeShader copyDepthShader;
 
-        private RenderTexture _depthRT;
         private Texture2D _readableDepth;
         private bool _isReady = false;
         private PinholeCameraIntrinsic _cachedIntrinsics;
+        
+        // Compute shader readback
+        private ComputeBuffer _depthBuffer;
+        private float[] _depthData;
+        private int _depthKernel = -1;
+        private bool _loggedDepthType = false;
+        
+        // RenderTexture fallback
+        private RenderTexture _depthRT;
 
         public void Initialize()
         {
@@ -32,7 +43,6 @@ namespace QuestGear3D.Scan.Sensors
 
             if (depthManager == null)
             {
-                // Try to create one if supported
                 if (EnvironmentDepthManager.IsSupported)
                 {
                     var obj = new GameObject("QuestDepthManager");
@@ -61,6 +71,12 @@ namespace QuestGear3D.Scan.Sensors
                     centerEyeAnchor = Camera.main.transform;
                 }
             }
+            
+            // Auto-load compute shader
+            if (copyDepthShader == null)
+            {
+                copyDepthShader = Resources.Load<ComputeShader>("CopyDepthSlice");
+            }
 
             _isReady = true;
             Debug.Log("[QuestDepthProvider] Initialized successfully.");
@@ -73,41 +89,107 @@ namespace QuestGear3D.Scan.Sensors
                 return null;
             }
 
-            // Retrieve depth texture from shader global property
-            var globalDepthTex = Shader.GetGlobalTexture("_EnvironmentDepthTexture") as RenderTexture;
-
-            if (globalDepthTex == null)
+            var globalTex = Shader.GetGlobalTexture("_EnvironmentDepthTexture");
+            if (globalTex == null) return null;
+            
+            // Log type once for diagnostics
+            if (!_loggedDepthType)
             {
-                return null;
+                _loggedDepthType = true;
+                Debug.Log($"[QuestDepthProvider] _EnvironmentDepthTexture type: {globalTex.GetType().Name}, " +
+                          $"dimension: {globalTex.dimension}, size: {globalTex.width}x{globalTex.height}");
+            }
+            
+            // Strategy 1: Texture2DArray + ComputeShader (Quest native)
+            if (globalTex.dimension == UnityEngine.Rendering.TextureDimension.Tex2DArray && copyDepthShader != null)
+            {
+                ReadViaComputeShader(globalTex);
+                return _readableDepth;
+            }
+            
+            // Strategy 2: RenderTexture blit 
+            var rtTex = globalTex as RenderTexture;
+            if (rtTex != null)
+            {
+                ReadViaRenderTexture(rtTex);
+                return _readableDepth;
+            }
+            
+            // Strategy 3: Direct Texture2D (unlikely but safe)
+            var tex2D = globalTex as Texture2D;
+            if (tex2D != null && tex2D.width > 16)
+            {
+                return tex2D;
             }
 
-            // Copy to CPU-readable texture
-            if (_depthRT == null || _depthRT.width != globalDepthTex.width || _depthRT.height != globalDepthTex.height)
+            return null;
+        }
+        
+        private void ReadViaComputeShader(Texture globalTex)
+        {
+            int w = globalTex.width;
+            int h = globalTex.height;
+            int totalPixels = w * h;
+            
+            if (_depthKernel < 0)
+            {
+                _depthKernel = copyDepthShader.FindKernel("CopySlice");
+            }
+            
+            if (_depthBuffer == null || _depthBuffer.count != totalPixels)
+            {
+                _depthBuffer?.Release();
+                _depthBuffer = new ComputeBuffer(totalPixels, sizeof(float));
+                _depthData = new float[totalPixels];
+            }
+            
+            copyDepthShader.SetTexture(_depthKernel, "_InputTex", globalTex);
+            copyDepthShader.SetBuffer(_depthKernel, "_OutputBuffer", _depthBuffer);
+            copyDepthShader.SetInt("_Width", w);
+            copyDepthShader.SetInt("_Height", h);
+            copyDepthShader.SetInt("_SliceIndex", 0); // Left eye
+            
+            int groupsX = Mathf.CeilToInt(w / 8f);
+            int groupsY = Mathf.CeilToInt(h / 8f);
+            copyDepthShader.Dispatch(_depthKernel, groupsX, groupsY, 1);
+            
+            _depthBuffer.GetData(_depthData);
+            
+            if (_readableDepth == null || _readableDepth.width != w || _readableDepth.height != h)
+            {
+                _readableDepth = new Texture2D(w, h, TextureFormat.RFloat, false);
+            }
+            
+            var nativeArray = _readableDepth.GetRawTextureData<float>();
+            nativeArray.CopyFrom(_depthData);
+            _readableDepth.Apply();
+        }
+        
+        private void ReadViaRenderTexture(RenderTexture source)
+        {
+            if (_depthRT == null || _depthRT.width != source.width || _depthRT.height != source.height)
             {
                 if (_depthRT != null) _depthRT.Release();
-                _depthRT = new RenderTexture(globalDepthTex.width, globalDepthTex.height, 0, RenderTextureFormat.R16);
+                _depthRT = new RenderTexture(source.width, source.height, 0, RenderTextureFormat.RFloat);
             }
-
-            Graphics.Blit(globalDepthTex, _depthRT);
-
+            
+            Graphics.Blit(source, _depthRT);
+            
             if (_readableDepth == null || _readableDepth.width != _depthRT.width || _readableDepth.height != _depthRT.height)
             {
-                _readableDepth = new Texture2D(_depthRT.width, _depthRT.height, TextureFormat.R16, false);
+                _readableDepth = new Texture2D(_depthRT.width, _depthRT.height, TextureFormat.RFloat, false);
             }
-
+            
             RenderTexture.active = _depthRT;
             _readableDepth.ReadPixels(new Rect(0, 0, _depthRT.width, _depthRT.height), 0, 0);
             _readableDepth.Apply();
             RenderTexture.active = null;
-
-            return _readableDepth;
         }
 
         public PinholeCameraIntrinsic GetIntrinsics()
         {
             if (_cachedIntrinsics != null) return _cachedIntrinsics;
 
-            // Try to get depth sensor intrinsics from OVRPlugin
             try
             {
                 bool success = OVRPlugin.GetNodeFrustum2(OVRPlugin.Node.EyeCenter, out OVRPlugin.Frustumf2 frustum);
@@ -130,7 +212,6 @@ namespace QuestGear3D.Scan.Sensors
                 Debug.LogWarning($"[QuestDepthProvider] Intrinsics lookup failed: {e.Message}");
             }
 
-            // Fallback
             _cachedIntrinsics = new PinholeCameraIntrinsic(256, 256, 128f, 128f, 128f, 128f);
             return _cachedIntrinsics;
         }
@@ -155,6 +236,12 @@ namespace QuestGear3D.Scan.Sensors
             {
                 _depthRT.Release();
                 _depthRT = null;
+            }
+            
+            if (_depthBuffer != null)
+            {
+                _depthBuffer.Release();
+                _depthBuffer = null;
             }
         }
     }

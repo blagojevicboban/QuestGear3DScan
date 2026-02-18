@@ -12,9 +12,10 @@
 
 ### Depth & Visualization
 -   **Environment Depth API**: Utilizes Meta's `EnvironmentDepthManager` for accurate geometry.
--   **Real-time Depth Point Cloud**: Live visualization using `EnvironmentRaycastManager` — color-coded by viewing angle (white = head-on/good, vivid = grazing/poor).
+-   **ComputeShader Depth Readback**: Reads `Texture2DArray` depth (Quest native format) via `CopyDepthSlice.compute` for reliable GPU→CPU transfer.
+-   **Real-time Depth Point Cloud**: Live visualization color-coded by distance (green = near, blue = far).
 -   **External Depth Support**: Pluggable `IDepthProvider` interface for professional sensors (RealSense, Structure).
--   **QuestDepthProvider**: Concrete `IDepthProvider` implementation for Quest's built-in depth.
+-   **QuestDepthProvider**: Concrete `IDepthProvider` with 3-strategy readback (ComputeShader → RenderTexture → Direct).
 
 ### Camera System
 -   **Synchronized Capture Timer**: Centralized FPS-based timing (`CaptureTimer`) ensures camera and depth are captured in the same frame.
@@ -107,36 +108,41 @@ Each scan is saved in a timestamped folder containing:
 -   `scan_data.json`: Comprehensive metadata including camera intrinsics and frame poses.
 -   `transforms.json`: **NerfStudio** compatible file for training Gaussian Splats.
 -   `color/`: Directory containing RGB frames (`frame_XXXXXX.jpg`).
--   `depth/`: Directory containing 16-bit Depth Maps (`frame_XXXXXX.png`).
--   `debug_camera_log.txt`: Camera diagnostic info (devices, permissions, depth status).
+-   `depth/`: Directory containing depth maps (`frame_XXXXXX.png`) — 32-bit float extracted from Quest's `Texture2DArray` via ComputeShader.
+-   `debug_camera_log.txt`: Camera diagnostic info (devices, permissions, depth texture type/dimension/size, compute shader status).
 
 ## 🏗 Architecture
 
 ```
-Assets/Scripts/
-├── Core/
-│   ├── ScanController.cs      # Main scan orchestrator
-│   ├── QuestCameraProvider.cs  # Camera access + depth + intrinsics
-│   ├── CaptureTimer.cs         # Synchronized FPS timing
-│   ├── IFrameProvider.cs       # Frame provider interface
-│   └── IDepthProvider.cs       # Depth provider interface
-├── Data/
-│   ├── ScanDataManager.cs      # Async data serialization
-│   ├── ScanData.cs             # Data structures
-│   ├── NerfStudioExporter.cs   # transforms.json export
-│   └── RecordingExporter.cs    # ZIP export + session management
-├── Integration/
-│   └── ScanFileServer.cs       # HTTP server for Wi-Fi download
-├── Mock/
-│   └── MockCameraProvider.cs   # Editor testing without headset
-├── Scan/Sensors/
-│   ├── IDepthProvider.cs       # Depth sensor interface
-│   └── QuestDepthProvider.cs   # Quest Environment Depth implementation
-├── UI/
-│   ├── ScanDashboard.cs        # Dashboard UI controller
-│   └── ScanVisualization.cs    # Real-time depth point cloud
-└── Tests/
-    └── AutomatedWorkflowTest.cs # E2E test
+Assets/
+├── ComputeShaders/
+│   └── CopyDepthSlice.compute   # Texture2DArray → buffer readback
+├── Resources/
+│   └── CopyDepthSlice.compute   # Auto-loaded by QuestCameraProvider
+└── Scripts/
+    ├── Core/
+    │   ├── ScanController.cs      # Main scan orchestrator
+    │   ├── QuestCameraProvider.cs  # Camera + depth (ComputeShader) + intrinsics
+    │   ├── CaptureTimer.cs         # Synchronized FPS timing
+    │   ├── IFrameProvider.cs       # Frame provider interface
+    │   └── IDepthProvider.cs       # Depth provider interface
+    ├── Data/
+    │   ├── ScanDataManager.cs      # Async data serialization
+    │   ├── ScanData.cs             # Data structures
+    │   ├── NerfStudioExporter.cs   # transforms.json export
+    │   └── RecordingExporter.cs    # ZIP export + session management
+    ├── Integration/
+    │   └── ScanFileServer.cs       # HTTP server for Wi-Fi download
+    ├── Mock/
+    │   └── MockCameraProvider.cs   # Editor testing without headset
+    ├── Scan/Sensors/
+    │   ├── IDepthProvider.cs       # Depth sensor interface
+    │   └── QuestDepthProvider.cs   # Quest depth (ComputeShader readback)
+    ├── UI/
+    │   ├── ScanDashboard.cs        # Dashboard UI controller
+    │   └── ScanVisualization.cs    # Real-time depth point cloud
+    └── Tests/
+        └── AutomatedWorkflowTest.cs # E2E test
 ```
 
 ## 📚 Documentation
