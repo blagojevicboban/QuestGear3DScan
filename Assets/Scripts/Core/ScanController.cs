@@ -18,6 +18,9 @@ namespace QuestGear3D.Scan.Core
         [Header("Dependencies")]
         public ScanDataManager dataManager;
         
+        [Tooltip("Centralized capture timer for synchronized frame timing.")]
+        public CaptureTimer captureTimer;
+        
         // Use direct reference to concrete component or interface wrapper if possible
         // For simplicity with Inspector, we use MonoBehaviour then cast.
         public Component frameProviderObject; 
@@ -31,9 +34,6 @@ namespace QuestGear3D.Scan.Core
         [field: Header("Status")]
         public bool IsScanning { get; private set; }
         public float CurrentCountdown { get; private set; }
-
-        private float _lastCaptureTime;
-        private float _captureInterval;
 
         void Awake()
         {
@@ -66,6 +66,11 @@ namespace QuestGear3D.Scan.Core
             {
                 sceneManager = FindObjectOfType<OVRSceneManager>();
             }
+
+            if (captureTimer == null)
+            {
+                captureTimer = FindObjectOfType<CaptureTimer>();
+            }
         }
 
         void Start()
@@ -74,10 +79,11 @@ namespace QuestGear3D.Scan.Core
              {
                  _frameProvider.Initialize();
              }
-             _captureInterval = 1f / targetFPS;
-             
-             // Ensure legacy field matches property if set in inspector
-             // currentScanMode field was removed to use Property directly
+             // Set CaptureTimer FPS to match scan settings
+             if (captureTimer != null)
+             {
+                 captureTimer.SetTargetFPS(targetFPS);
+             }
         }
 
         public void SetScanMode(ScanMode mode)
@@ -132,7 +138,14 @@ namespace QuestGear3D.Scan.Core
             }
 
             IsScanning = true;
-            _lastCaptureTime = Time.time;
+            
+            // Start synchronized capture timer
+            if (captureTimer != null)
+            {
+                captureTimer.SetTargetFPS(targetFPS);
+                captureTimer.StartCapture();
+            }
+            
             Debug.Log($"[ScanController] Scan STARTED (Mode: {CurrentScanMode})");
 
             // Mode Logic
@@ -208,6 +221,12 @@ namespace QuestGear3D.Scan.Core
             
             IsScanning = false;
             
+            // Stop capture timer
+            if (captureTimer != null)
+            {
+                captureTimer.StopCapture();
+            }
+            
             if (CurrentScanMode == ScanMode.Object)
             {
                 if (_frameProvider != null) _frameProvider.StopStream();
@@ -215,8 +234,6 @@ namespace QuestGear3D.Scan.Core
             else 
             {
                 // Space Mode: Capture logical completion
-                // Ideally we hook into OVRSceneManager events to know when capture is done
-                // For now, we manually "Stop" to save data and finish session
                 CaptureRoomData();
             }
 
@@ -248,17 +265,19 @@ namespace QuestGear3D.Scan.Core
             {
                 if (_frameProvider == null) return;
 
-                // Simple FPS throttle
-                if (Time.time - _lastCaptureTime >= _captureInterval)
+                // Use CaptureTimer for synchronized timing
+                bool shouldCapture = true;
+                if (captureTimer != null)
                 {
-                    if (_frameProvider.HasNewFrame())
+                    shouldCapture = captureTimer.IsCapturing && captureTimer.ShouldCaptureThisFrame;
+                }
+
+                if (shouldCapture && _frameProvider.HasNewFrame())
+                {
+                    var frame = _frameProvider.GetLatestFrame();
+                    if (frame.ColorTexture != null)
                     {
-                        var frame = _frameProvider.GetLatestFrame();
-                        if (frame.ColorTexture != null)
-                        {
-                            dataManager.CaptureFrame(frame.ColorTexture, frame.DepthTexture, frame.CameraPose);
-                            _lastCaptureTime = Time.time;
-                        }
+                        dataManager.CaptureFrame(frame.ColorTexture, frame.DepthTexture, frame.CameraPose);
                     }
                 }
             }

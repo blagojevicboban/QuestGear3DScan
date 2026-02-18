@@ -102,27 +102,44 @@ namespace QuestGear3D.Scan.Integration
         private void HandleRequest(HttpListenerContext context)
         {
             HttpListenerResponse response = context.Response;
-            string urlPath = context.Request.Url.AbsolutePath; // e.g., / or /Scan_.../color/...
+            string httpMethod = context.Request.HttpMethod;
+            string urlPath = context.Request.Url.AbsolutePath;
             
-            // Decoded path (spaces, legacy, etc)
             urlPath = Uri.UnescapeDataString(urlPath);
             
-            Debug.Log($"[FileServer] Request: {urlPath}");
+            Debug.Log($"[FileServer] {httpMethod} {urlPath}");
 
             try
             {
-                if (urlPath == "/" || urlPath == "/index.html")
+                // Handle DELETE requests
+                if (httpMethod == "DELETE")
                 {
-                    // Serve Directory Listing
-                    string html = GenerateDirectoryListing(_rootPath);
+                    string relativePath = urlPath.TrimStart('/');
+                    string fullPath = Path.Combine(_rootPath, relativePath);
+
+                    if (Directory.Exists(fullPath))
+                    {
+                        Directory.Delete(fullPath, true);
+                        response.StatusCode = 200;
+                        byte[] msg = Encoding.UTF8.GetBytes("Deleted successfully");
+                        response.OutputStream.Write(msg, 0, msg.Length);
+                        Debug.Log($"[FileServer] Deleted: {fullPath}");
+                    }
+                    else
+                    {
+                        response.StatusCode = 404;
+                    }
+                }
+                else if (urlPath == "/" || urlPath == "/index.html")
+                {
+                    string html = GenerateDirectoryListing(_rootPath, true);
                     byte[] buffer = Encoding.UTF8.GetBytes(html);
+                    response.ContentType = "text/html; charset=utf-8";
                     response.ContentLength64 = buffer.Length;
                     response.OutputStream.Write(buffer, 0, buffer.Length);
                 }
                 else
                 {
-                    // Serve File
-                    // Remove leading slash to combine with root
                     string relativePath = urlPath.TrimStart('/');
                     string fullPath = Path.Combine(_rootPath, relativePath);
                     
@@ -135,9 +152,9 @@ namespace QuestGear3D.Scan.Integration
                     }
                     else if (Directory.Exists(fullPath))
                     {
-                        // Sub-directory listing
-                         string html = GenerateDirectoryListing(fullPath);
+                         string html = GenerateDirectoryListing(fullPath, false);
                          byte[] buffer = Encoding.UTF8.GetBytes(html);
+                         response.ContentType = "text/html; charset=utf-8";
                          response.ContentLength64 = buffer.Length;
                          response.OutputStream.Write(buffer, 0, buffer.Length);
                     }
@@ -158,34 +175,64 @@ namespace QuestGear3D.Scan.Integration
             }
         }
 
-        private string GenerateDirectoryListing(string path)
+        private string GenerateDirectoryListing(string path, bool isRoot)
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append("<html><head><title>QuestGear 3D Scans</title></head><body>");
-            sb.Append($"<h1>Data at {path}</h1><ul>");
+            sb.Append("<html><head><title>QuestGear 3D Scans</title>");
+            sb.Append("<style>");
+            sb.Append("body{font-family:sans-serif;max-width:800px;margin:40px auto;padding:0 20px;background:#1a1a2e;color:#e0e0e0;}");
+            sb.Append("h1{color:#00d4ff;} a{color:#4fc3f7;text-decoration:none;} a:hover{text-decoration:underline;}");
+            sb.Append(".item{display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #333;}");
+            sb.Append(".item:hover{background:#222244;}");
+            sb.Append(".name{flex:1;} .size{color:#888;margin-right:16px;}");
+            sb.Append(".btn{padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-left:4px;}");
+            sb.Append(".btn-del{background:#c62828;color:white;} .btn-del:hover{background:#e53935;}");
+            sb.Append("</style>");
+            sb.Append("<script>");
+            sb.Append("function delSession(name){if(confirm('Delete '+name+'?')){fetch('/'+name,{method:'DELETE'}).then(()=>location.reload());}}");
+            sb.Append("</script>");
+            sb.Append("</head><body>");
+            sb.Append("<h1>QuestGear 3D Scans</h1>");
 
-            // Up link
-            sb.Append("<li><a href=\"..\">.. (Up)</a></li>");
+            if (!isRoot)
+            {
+                sb.Append("<div class='item'><span class='name'><a href='..'>.. Back</a></span></div>");
+            }
 
             // Directories
             foreach (var dir in Directory.GetDirectories(path))
             {
                 string dirName = new DirectoryInfo(dir).Name;
-                // Relative link logic is tricky with HttpListener paths, keeping it simple:
-                // If we are at root, link is just Name/
-                // If we are deep, we need to construct proper relative path logic or use absolute from root context
-                // For simplicity assuming flat or basic structure
-                sb.Append($"<li><a href=\"{dirName}/\">{dirName}/</a></li>");
+                long size = 0;
+                try
+                {
+                    foreach (var f in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+                        size += new FileInfo(f).Length;
+                }
+                catch { /* ignore */ }
+
+                string sizeStr = QuestGear3D.Scan.Data.RecordingExporter.FormatSize(size);
+
+                sb.Append("<div class='item'>");
+                sb.Append($"<span class='name'><a href='{dirName}/'>{dirName}</a></span>");
+                sb.Append($"<span class='size'>{sizeStr}</span>");
+                if (isRoot)
+                {
+                    sb.Append($"<button class='btn btn-del' onclick=\"delSession('{dirName}')\">Delete</button>");
+                }
+                sb.Append("</div>");
             }
 
             // Files
             foreach (var file in Directory.GetFiles(path))
             {
                 string fileName = Path.GetFileName(file);
-                sb.Append($"<li><a href=\"{fileName}\">{fileName}</a></li>");
+                long size = new FileInfo(file).Length;
+                string sizeStr = QuestGear3D.Scan.Data.RecordingExporter.FormatSize(size);
+                sb.Append($"<div class='item'><span class='name'><a href='{fileName}'>{fileName}</a></span><span class='size'>{sizeStr}</span></div>");
             }
 
-            sb.Append("</ul></body></html>");
+            sb.Append("</body></html>");
             return sb.ToString();
         }
 

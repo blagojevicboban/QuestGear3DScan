@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Android; // Required for Permission
 using System.Collections;
 using System;
+using System.Runtime.InteropServices;
 using QuestGear3D.Scan.Core;
 using QuestGear3D.Scan.Data;
 // Note: We use reflection or loose coupling to avoid direct errors if namespace is missing during compile, 
@@ -33,6 +34,8 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
     private EnvironmentDepthManager _depthManager;
     private RenderTexture _depthRT;
     private Texture2D _readableDepth;
+    private Coroutine _resumeCoroutine;
+    private const float RESUME_DELAY = 0.5f;
 
     [Header("External Depth (Optional)")]
     public GameObject externalDepthSource; 
@@ -364,7 +367,29 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
 
     public void SetFlashlight(bool enabled)
     {
-        Debug.Log($"[QuestCameraProvider] Flashlight {(enabled ? "ON" : "OFF")} (Not implemented)");
+#if UNITY_ANDROID && !UNITY_EDITOR
+        try
+        {
+            using (AndroidJavaClass cameraManagerClass = new AndroidJavaClass("android.hardware.camera2.CameraManager"))
+            using (AndroidJavaClass unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using (AndroidJavaObject activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+            using (AndroidJavaObject cameraManager = activity.Call<AndroidJavaObject>("getSystemService", "camera"))
+            {
+                string[] cameraIds = cameraManager.Call<string[]>("getCameraIdList");
+                if (cameraIds != null && cameraIds.Length > 0)
+                {
+                    cameraManager.Call("setTorchMode", cameraIds[0], enabled);
+                    Debug.Log($"[QuestCameraProvider] Flashlight {(enabled ? "ON" : "OFF")}");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[QuestCameraProvider] Flashlight failed: {e.Message}");
+        }
+#else
+        Debug.Log($"[QuestCameraProvider] Flashlight {(enabled ? "ON" : "OFF")} (Editor — no-op)");
+#endif
     }
 
     private void RestartStream()
@@ -378,23 +403,35 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
     {
         if (_cachedIntrinsics != null) return _cachedIntrinsics;
 
-        // Try to get from OVRPlugin
-        // We use Node.EyeCenter as proxy for passthrough camera in many cases if they align?
-        // Actually, passthrough is a separate system.
-        // OVRPlugin.GetCameraDeviceIntrinsicsParameters is for Insight cameras (tracking).
+        // Try OVRPlugin API first for real intrinsics
+        try
+        {
+            bool success = OVRPlugin.GetNodeFrustum2(OVRPlugin.Node.EyeCenter, out OVRPlugin.Frustumf2 frustum);
+            if (success && frustum.Fov.UpTan > 0)
+            {
+                float width = (_latestColorTexture != null && _latestColorTexture.width > 16) ? _latestColorTexture.width : requestedWidth;
+                float height = (_latestColorTexture != null && _latestColorTexture.height > 16) ? _latestColorTexture.height : requestedHeight;
+
+                // Derive focal length from frustum tangent values
+                float fy = height / (frustum.Fov.UpTan + frustum.Fov.DownTan);
+                float fx = width / (frustum.Fov.LeftTan + frustum.Fov.RightTan);
+                float cx = frustum.Fov.LeftTan * fx;
+                float cy = frustum.Fov.UpTan * fy;
+
+                _cachedIntrinsics = new PinholeCameraIntrinsic((int)width, (int)height, fx, fy, cx, cy);
+                Debug.Log($"[QuestProvider] Intrinsics from OVRPlugin: fx={fx:F1}, fy={fy:F1}, cx={cx:F1}, cy={cy:F1}");
+                return _cachedIntrinsics;
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[QuestProvider] OVRPlugin intrinsics failed, using fallback: {e.Message}");
+        }
+
+        // Fallback: estimate from FOV
+        float w = (_latestColorTexture != null && _latestColorTexture.width > 16) ? _latestColorTexture.width : requestedWidth;
+        float h = (_latestColorTexture != null && _latestColorTexture.height > 16) ? _latestColorTexture.height : requestedHeight;
         
-        // Best approach for WebCamTexture in Unity:
-        // Use the resolution we asked for.
-        // Assume standard FOV or try to derive.
-        // Quest 3 Passthrough FOV is roughly similar to display FOV but cropped.
-        // A standard value often used for Quest Passthrough recordings is around 80-90 degrees depending on mode.
-        
-        // Let's create a reasonable approximation.
-        // Use the resolution we asked for if the texture hasn't updated from default 16x16 yet.
-        float width = (_latestColorTexture != null && _latestColorTexture.width > 16) ? _latestColorTexture.width : requestedWidth;
-        float height = (_latestColorTexture != null && _latestColorTexture.height > 16) ? _latestColorTexture.height : requestedHeight;
-        
-        // If centerEyeAnchor has a Camera component, we might use its FOV if it matches passthrough underlay.
         float fovY = fallbackFOV;
         if (centerEyeAnchor != null)
         {
@@ -402,15 +439,13 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             if (cam != null) fovY = cam.fieldOfView;
         }
 
-        // Calculate focal length from vertical FOV
-        // f = (h / 2) / tan(fov / 2)
-        float fy = (height / 2.0f) / Mathf.Tan(fovY * 0.5f * Mathf.Deg2Rad);
-        float fx = fy; // Square pixels assumption
-        float cx = width / 2.0f;
-        float cy = height / 2.0f;
+        float fallbackFy = (h / 2.0f) / Mathf.Tan(fovY * 0.5f * Mathf.Deg2Rad);
+        float fallbackFx = fallbackFy;
+        float fallbackCx = w / 2.0f;
+        float fallbackCy = h / 2.0f;
 
-
-        _cachedIntrinsics = new PinholeCameraIntrinsic((int)width, (int)height, fx, fy, cx, cy);
+        _cachedIntrinsics = new PinholeCameraIntrinsic((int)w, (int)h, fallbackFx, fallbackFy, fallbackCx, fallbackCy);
+        Debug.Log($"[QuestProvider] Intrinsics from FOV fallback: fx={fallbackFx:F1}, fy={fallbackFy:F1}");
         return _cachedIntrinsics;
     }
 
@@ -460,5 +495,69 @@ public class QuestCameraProvider : MonoBehaviour, IFrameProvider
             writer.WriteLine($"Camera Permission Granted: {Permission.HasUserAuthorizedPermission(Permission.Camera)}");
         }
         Debug.Log($"[QuestProvider] Diagnostics written to: {logPath}");
+    }
+
+    /// <summary>
+    /// Handles app pause/resume lifecycle for camera resource management.
+    /// </summary>
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+        {
+            // App going to background — release camera
+            if (_resumeCoroutine != null)
+            {
+                StopCoroutine(_resumeCoroutine);
+                _resumeCoroutine = null;
+            }
+            
+            if (_isStreaming)
+            {
+                Debug.Log("[QuestProvider] App pausing — stopping camera stream");
+                if (_webCamTexture != null && _webCamTexture.isPlaying)
+                {
+                    _webCamTexture.Stop();
+                }
+            }
+        }
+        else
+        {
+            // App resuming — delay camera restart to avoid rapid cycles
+            if (_isStreaming)
+            {
+                if (_resumeCoroutine != null)
+                {
+                    StopCoroutine(_resumeCoroutine);
+                }
+                _resumeCoroutine = StartCoroutine(DelayedResume());
+            }
+        }
+    }
+
+    private IEnumerator DelayedResume()
+    {
+        Debug.Log($"[QuestProvider] App resuming — waiting {RESUME_DELAY}s before restarting camera...");
+        yield return new WaitForSeconds(RESUME_DELAY);
+        
+        if (_isStreaming && _webCamTexture != null && !_webCamTexture.isPlaying)
+        {
+            _webCamTexture.Play();
+            Debug.Log("[QuestProvider] Camera restarted after resume");
+        }
+        
+        _resumeCoroutine = null;
+    }
+
+    private void OnDestroy()
+    {
+        if (_isStreaming)
+        {
+            StopStream();
+        }
+        
+        if (_depthRT != null)
+        {
+            _depthRT.Release();
+        }
     }
 }
