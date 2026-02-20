@@ -11,6 +11,18 @@ namespace QuestGear3D.Scan.Data
         Space
     }
 
+    /// <summary>
+    /// Phases within a Space scan session.
+    /// Phase 1 (Geometry): Room Setup captures walls, floors, furniture as semantic anchors.
+    /// Phase 2 (Appearance): Camera walkthrough captures color/depth/poses for photorealistic reconstruction.
+    /// </summary>
+    [Serializable]
+    public enum SpaceScanPhase
+    {
+        Geometry,    // Phase 1: Room Setup / Scene Capture
+        Appearance   // Phase 2: Camera walkthrough for photorealistic capture
+    }
+
     [Serializable]
     public class ScanData
     {

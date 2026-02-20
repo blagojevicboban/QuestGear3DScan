@@ -41,11 +41,11 @@
     -   Real-time depth point cloud shows capture coverage.
     -   Ideal for product scanning, artifacts, and props.
 
--   **Space Mode**: 
-    -   Designed for room-scale scanning and environment capture.
-    -   Captures broader geometry with a focus on spatial layout.
-    -   Utilizes Meta Scene API for semantic understanding.
-    -   Ideal for architectural surveys, room walkthroughs, and VR environment creation.
+-   **Space Mode** (Two-Phase Capture): 
+    -   **Phase 1 — Geometry**: Room Setup captures walls, floors, ceilings, and furniture via Meta Scene API.
+    -   **Phase 2 — Appearance**: Automatic camera walkthrough captures RGB-D frames + poses for photorealistic reconstruction.
+    -   Combined output enables both structural layout AND visual appearance reconstruction (NeRF/Gaussian Splatting).
+    -   Ideal for architectural surveys, digital twins, and VR environment creation.
 
 ## 📦 Installation
 
@@ -104,12 +104,16 @@ adb pull /sdcard/Android/data/com.QuestGear3D.Scan/files/Scans/ ./MyScans/
 
 ## 📂 Data Format
 
-Each scan is saved in a timestamped folder containing:
--   `scan_data.json`: Comprehensive metadata including camera intrinsics and frame poses.
--   `transforms.json`: **NerfStudio** compatible file for training Gaussian Splats.
--   `color/`: Directory containing RGB frames (`frame_XXXXXX.jpg`).
--   `depth/`: Directory containing depth maps (`frame_XXXXXX.png`) — 32-bit float extracted from Quest's `Texture2DArray` via ComputeShader.
--   `debug_camera_log.txt`: Camera diagnostic info (devices, permissions, depth texture type/dimension/size, compute shader status).
+Each scan is saved in a timestamped folder. **Object Mode** scans contain all items. **Space Mode** scans now also contain all items (geometry + appearance).
+
+| File/Folder | Source | Description |
+|---|---|---|
+| `scan_data.json` | Object / Space Phase 2 | Camera intrinsics and frame poses |
+| `transforms.json` | Object / Space Phase 2 | NerfStudio-compatible format for Gaussian Splat training |
+| `color/` | Object / Space Phase 2 | RGB frames (`frame_XXXXXX.jpg`) |
+| `depth/` | Object / Space Phase 2 | Depth maps (`frame_XXXXXX.png`) — 32-bit float via ComputeShader |
+| `scene_data.json` | Space Phase 1 | Room geometry: walls, floors, furniture (UUIDs, positions, dimensions) |
+| `debug_camera_log.txt` | Both | Camera diagnostics (devices, permissions, depth status) |
 
 ## 🏗 Architecture
 

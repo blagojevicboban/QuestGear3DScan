@@ -95,8 +95,10 @@ namespace QuestGear3D.Scan.UI
                 }
             }
 
-            // Object Mode: depth point cloud or mock fallback
-            if (pointCloudParticles == null || isSpaceMode || !isScanning) return;
+            // Object Mode OR Space Phase 2 (Appearance): depth point cloud or mock fallback
+            bool showPointCloud = !isSpaceMode || 
+                (scanController.CurrentPhase == QuestGear3D.Scan.Data.SpaceScanPhase.Appearance);
+            if (pointCloudParticles == null || !showPointCloud || !isScanning) return;
 
             // Use CaptureTimer if available for synchronized visualization
             bool shouldVisualize = true;

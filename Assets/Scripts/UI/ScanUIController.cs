@@ -140,7 +140,24 @@ namespace QuestGear3D.Scan.UI
                 
                 if (scanController.IsScanning)
                 {
-                    UpdateStatus($"{modeText}\nScanning... (Active)\nPress 'A' to Stop");
+                    if (scanController.CurrentScanMode == ScanMode.Space)
+                    {
+                        // Space Mode: Show phase-specific status
+                        if (scanController.CurrentPhase == SpaceScanPhase.Geometry)
+                        {
+                            UpdateStatus($"{modeText} — PHASE 1\nCapturing Room Geometry...\nComplete Room Setup");
+                        }
+                        else // Appearance
+                        {
+                            int frameCount = scanController.dataManager != null ? 
+                                scanController.dataManager.PendingSaveCount : 0;
+                            UpdateStatus($"{modeText} — PHASE 2\nCapturing Appearance...\nWalk around the room\nPress 'A' to Finish");
+                        }
+                    }
+                    else
+                    {
+                        UpdateStatus($"{modeText}\nScanning... (Active)\nPress 'A' to Stop");
+                    }
                     UpdateButtonText("STOP SCAN");
                     _isScanning = true;
                 }

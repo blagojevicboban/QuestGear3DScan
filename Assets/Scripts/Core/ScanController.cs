@@ -34,10 +34,15 @@ namespace QuestGear3D.Scan.Core
         public bool IsScanning { get; private set; }
         public float CurrentCountdown { get; private set; }
         
+        /// <summary>Current phase in Space scan (Geometry or Appearance).</summary>
+        public SpaceScanPhase CurrentPhase { get; private set; } = SpaceScanPhase.Geometry;
+        
         /// <summary>True when Space Mode scene model has loaded and is ready to capture.</summary>
         public bool IsSceneModelLoaded { get; private set; }
         private bool _waitingForSceneCapture = false;
         private Coroutine _roomCaptureRetry;
+        private float _phase2StartTime = 0f;
+        private const float PHASE2_MIN_DURATION = 2.0f; // Prevent accidental stop from input bleed-through
 
         void Awake()
         {
@@ -155,19 +160,34 @@ namespace QuestGear3D.Scan.Core
             // Mode Logic
             if (CurrentScanMode == ScanMode.Space)
             {
-                // Space Mode: Trigger Scene Capture (Force new scan)
-                IsSceneModelLoaded = false;
-                _waitingForSceneCapture = true;
-                
-                if (sceneManager != null)
+                // Check if scene model is already available (common: Meta caches Room Setup)
+                var existingRooms = FindObjectsOfType<OVRSceneRoom>();
+                if (IsSceneModelLoaded || existingRooms.Length > 0)
                 {
-                    Debug.Log("[Scan] Requesting Scene Capture... (Forcing Room Setup)");
-                    sceneManager.RequestSceneCapture();
+                    // Scene already available — skip Phase 1, capture geometry + start Phase 2 immediately
+                    Debug.Log($"[Scan] Scene model already loaded ({existingRooms.Length} rooms). Skipping Room Setup.");
+                    IsSceneModelLoaded = true;
+                    CaptureRoomData();
+                    StartAppearanceCapture();
                 }
                 else
                 {
-                    Debug.LogError("[Scan] OVRSceneManager missing for Space Mode!");
-                    StopScan(); // Abort
+                    // No scene model — trigger Room Setup (Phase 1)
+                    _waitingForSceneCapture = true;
+                    
+                    if (sceneManager != null)
+                    {
+                        Debug.Log("[Scan] No existing scene model. Requesting Room Setup...");
+                        sceneManager.RequestSceneCapture();
+                        
+                        // Start failsafe polling in case events are missed
+                        StartCoroutine(PollForSceneModel());
+                    }
+                    else
+                    {
+                        Debug.LogError("[Scan] OVRSceneManager missing for Space Mode!");
+                        StopScan(); // Abort — won't be blocked since we allow abort when sceneManager is null
+                    }
                 }
             }
             else
@@ -208,11 +228,14 @@ namespace QuestGear3D.Scan.Core
             IsSceneModelLoaded = true;
             _waitingForSceneCapture = false;
             
-            // If we're in an active Space scan, auto-capture the room data now
+            // If we're in an active Space scan, capture geometry then transition to Phase 2
             if (IsScanning && CurrentScanMode == ScanMode.Space)
             {
                 Debug.Log("[ScanController] Auto-capturing room data after scene model load.");
                 CaptureRoomData();
+                
+                // Transition to Phase 2: Appearance capture
+                StartAppearanceCapture();
             }
         }
 
@@ -235,6 +258,26 @@ namespace QuestGear3D.Scan.Core
         {
             if (!IsScanning) return;
             
+            // GUARD: During Space Phase 1 (Room Setup), ignore stop requests.
+            // Input can bleed through when returning from system Room Setup overlay.
+            if (CurrentScanMode == ScanMode.Space && CurrentPhase == SpaceScanPhase.Geometry)
+            {
+                Debug.Log("[ScanController] Ignoring StopScan during Space Phase 1 (Room Setup in progress).");
+                return;
+            }
+            
+            // GUARD: Prevent accidental Phase 2 stop from input bleed-through.
+            // Require minimum capture duration before allowing stop.
+            if (CurrentScanMode == ScanMode.Space && CurrentPhase == SpaceScanPhase.Appearance)
+            {
+                float elapsed = Time.unscaledTime - _phase2StartTime;
+                if (elapsed < PHASE2_MIN_DURATION)
+                {
+                    Debug.Log($"[ScanController] Ignoring StopScan — Phase 2 just started ({elapsed:F1}s < {PHASE2_MIN_DURATION}s).");
+                    return;
+                }
+            }
+            
             IsScanning = false;
             
             // Stop capture timer
@@ -250,24 +293,13 @@ namespace QuestGear3D.Scan.Core
             }
             else 
             {
-                // Space Mode: Try to capture room now, or wait for model to load
-                if (IsSceneModelLoaded)
-                {
-                    // Already loaded — capture immediately
-                    CaptureRoomData();
-                    if (dataManager != null) dataManager.StopScan();
-                }
-                else if (_waitingForSceneCapture)
-                {
-                    // Scene is still loading — start retry coroutine
-                    Debug.Log("[Scan] Scene model still loading. Waiting before capturing room data...");
-                    _roomCaptureRetry = StartCoroutine(WaitForSceneAndCapture());
-                }
-                else
-                {
-                    Debug.LogWarning("[Scan] No scene capture was requested. Saving without room data.");
-                    if (dataManager != null) dataManager.StopScan();
-                }
+                // Space Mode — must be Phase 2 at this point (Phase 1 is guarded above)
+                Debug.Log("[Scan] Stopping Space Appearance Capture (Phase 2).");
+                if (_frameProvider != null) _frameProvider.StopStream();
+                if (dataManager != null) dataManager.StopScan();
+                
+                // Reset phase for next scan
+                CurrentPhase = SpaceScanPhase.Geometry;
             }
             
             Debug.Log("[ScanController] Scan STOPPED");
@@ -291,13 +323,23 @@ namespace QuestGear3D.Scan.Core
             {
                 Debug.Log($"[Scan] Scene model loaded after {waited:F1}s wait.");
                 CaptureRoomData();
+                
+                // Transition to Phase 2 if scan is still active
+                if (IsScanning)
+                {
+                    StartAppearanceCapture();
+                }
+                else
+                {
+                    if (dataManager != null) dataManager.StopScan();
+                }
             }
             else
             {
                 Debug.LogWarning($"[Scan] Timed out waiting for scene model ({timeout}s). Room data not captured.");
+                if (dataManager != null) dataManager.StopScan();
             }
             
-            if (dataManager != null) dataManager.StopScan();
             _roomCaptureRetry = null;
         }
         
@@ -315,12 +357,105 @@ namespace QuestGear3D.Scan.Core
             }
         }
 
+        /// <summary>
+        /// Failsafe polling: checks every 2s for OVRSceneRoom objects.
+        /// After Scene Capture completes, explicitly calls LoadSceneModel()
+        /// since the OVR event can be lost during session restart.
+        /// </summary>
+        private IEnumerator PollForSceneModel()
+        {
+            float timeout = 60f;
+            float waited = 0f;
+            bool hasCalledLoad = false;
+            
+            Debug.Log("[Scan] Starting failsafe polling for scene model...");
+            
+            while (waited < timeout && IsScanning && CurrentPhase == SpaceScanPhase.Geometry)
+            {
+                yield return new WaitForSeconds(2f);
+                waited += 2f;
+                
+                // Check if rooms appeared in hierarchy
+                var rooms = FindObjectsOfType<OVRSceneRoom>();
+                if (rooms.Length > 0)
+                {
+                    Debug.Log($"[Scan] Failsafe poll: Found {rooms.Length} room(s) after {waited:F0}s. Starting Phase 2.");
+                    IsSceneModelLoaded = true;
+                    CaptureRoomData();
+                    StartAppearanceCapture();
+                    yield break;
+                }
+                
+                // After app regains focus (waited > 4s should cover the resume),
+                // explicitly call LoadSceneModel() to force anchor loading.
+                // The OVR event is often lost during session restart.
+                if (waited >= 4f && !hasCalledLoad && sceneManager != null)
+                {
+                    Debug.Log("[Scan] Failsafe poll: Explicitly calling LoadSceneModel()...");
+                    sceneManager.LoadSceneModel();
+                    hasCalledLoad = true;
+                }
+                else if (waited >= 10f && hasCalledLoad && sceneManager != null)
+                {
+                    // Retry once more after 10s in case first attempt was too early
+                    Debug.Log("[Scan] Failsafe poll: Retrying LoadSceneModel()...");
+                    sceneManager.LoadSceneModel();
+                    hasCalledLoad = false; // Allow one more retry at 16s
+                }
+                
+                Debug.Log($"[Scan] Failsafe poll: No rooms yet ({waited:F0}s / {timeout}s)...");
+            }
+            
+            if (CurrentPhase == SpaceScanPhase.Geometry && IsScanning)
+            {
+                Debug.LogWarning("[Scan] Failsafe poll timed out. No scene model found after 60s.");
+                // Allow user to stop the stuck scan — temporarily set to Appearance so StopScan works
+                CurrentPhase = SpaceScanPhase.Appearance;
+                _phase2StartTime = Time.unscaledTime - PHASE2_MIN_DURATION - 1f; // ensure stop allowed
+            }
+        }
+
+        /// <summary>
+        /// Starts Phase 2 (Appearance Capture) after room geometry has been captured.
+        /// Activates camera stream and capture timer for continuous frame recording.
+        /// </summary>
+        private void StartAppearanceCapture()
+        {
+            CurrentPhase = SpaceScanPhase.Appearance;
+            _phase2StartTime = Time.unscaledTime;
+            Debug.Log("[ScanController] === PHASE 2: Appearance Capture Started ===");
+            Debug.Log("[ScanController] Walk around the room. Press A to finish when done.");
+            
+            // Start camera stream (reuse Object mode pipeline)
+            if (_frameProvider != null)
+            {
+                _frameProvider.SetResolution(captureResolution.x, captureResolution.y);
+                _frameProvider.SetFPS(targetFPS);
+                _frameProvider.StartStream();
+                Debug.Log("[ScanController] Camera stream started for appearance capture.");
+            }
+            else
+            {
+                Debug.LogError("[ScanController] Frame provider is NULL — cannot start appearance capture!");
+            }
+            
+            // Restart capture timer for frame timing
+            if (captureTimer != null)
+            {
+                captureTimer.SetTargetFPS(targetFPS);
+                captureTimer.StartCapture();
+            }
+        }
+
         void Update()
         {
             if (!IsScanning || dataManager == null) return;
 
-            // Only Object mode needs continuous frame capture here
-            if (CurrentScanMode == ScanMode.Object)
+            // Capture frames in Object mode OR Space mode Phase 2 (Appearance)
+            bool shouldCaptureFrames = (CurrentScanMode == ScanMode.Object) ||
+                (CurrentScanMode == ScanMode.Space && CurrentPhase == SpaceScanPhase.Appearance);
+
+            if (shouldCaptureFrames)
             {
                 if (_frameProvider == null) return;
 

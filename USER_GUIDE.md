@@ -31,17 +31,27 @@ Use this mode to capture images of a specific object for 3D reconstruction.
 - File: `scan_data.json` — Camera intrinsics + frame poses.
 - File: `transforms.json` — NerfStudio-compatible format for Gaussian Splat training.
 
-### 2. Space Mode (Room Scanning)
-Use this mode to capture walls, floors, ceilings, and furniture in your room.
+### 2. Space Mode (Two-Phase Room Scanning)
+Captures both room geometry AND photorealistic appearance in a single session.
 
+**Phase 1 — Room Geometry:**
 1. Press **X** to switch to **SPACE**.
-2. Press **A (Start)**. The app will launch the system **Room Setup**.
+2. Press **A (Start)**. The app launches the system **Room Setup**.
 3. Follow the Quest instructions to map your room (look around, mark walls/furniture).
-4. When finished, you will return to the app. Wait a few seconds for the room model to load.
-5. Press **A (Stop)** to save the room geometry.
+4. When finished, the room geometry is captured automatically.
 
-**Output:** 
-- File: `scene_data.json` — Room dimensions, positions, and UUIDs.
+**Phase 2 — Appearance Capture (automatic):**
+5. The app automatically transitions to Phase 2 — the HUD shows "Capturing Appearance...".
+6. Walk slowly around the room. The camera captures RGB-D frames and poses.
+7. Watch the **depth point cloud** for coverage feedback.
+8. Press **A (Stop)** when you've covered the entire room.
+
+**Output:**
+- File: `scene_data.json` — Room geometry (walls, floors, furniture UUIDs and dimensions).
+- Folder: `color/` — RGB images (JPG) from the walkthrough.
+- Folder: `depth/` — Depth maps (PNG) from the walkthrough.
+- File: `scan_data.json` — Camera intrinsics + frame poses.
+- File: `transforms.json` — NerfStudio-compatible format for Gaussian Splat training.
 
 ---
 
